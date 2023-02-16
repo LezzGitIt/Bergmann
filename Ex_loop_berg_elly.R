@@ -3,7 +3,8 @@
 
 
 
-
+ fdfd 
+ 
 loop <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.Chord", "Mass"), Season = c("Breed", "Winter"), Hypothesis = c("Geo", "TR", "Prod", "Seas"))
 loop2 <- expand.grid(Species = c("CONI", "EWPW", "EUNI"),DV = c("Wing.Chord", "Mass"), Season = "NA", Hypothesis = "Mig.Dist")
 loop <- rbind(loop,loop2)
