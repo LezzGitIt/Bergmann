@@ -118,6 +118,7 @@ njdfs_all <- lapply(njdfs_all, setNames, cols)
 capri.df <- rbind(njdfs_all[[1]], njdfs_all[[2]], njdfs_all[[3]],njdfs_all[[4]], njdfs_all[[5]], njdfs_all[[6]], njdfs_all[[7]], njdfs_all[[8]], njdfs_all[[9]], njdfs_all[[10]], njdfs_all[[11]])
 #lapply(njdfs_all, function(x){head(x$Banding.Date)})
 
+#START HERE
 read.csv("capriElly4.16.csv")
 
 #Adjust time & date
@@ -233,9 +234,9 @@ nrow(euni.df)
 #There is substantial evidence that body size tracks temperature changes through time fairly rapidly (i.e., within X years) (Weeks, 2020). CONI data was collected over 5 years (2015 - 2019) and EWPW over 6 years (2017-2022), thus we did not 
 with(capri.df, table(Species, Year))
 summary(lm(Mass ~ scale(Year) * B.Lat + Age, data = euni.df)) 
-summary(lm(Wing.Chord ~ poly(Year,1) + B.Lat + Age, data = euni.df)) 
+summary(lm(Wing.Chord ~ scale(Year) + B.Lat + Age, data = euni.df)) 
 ggplot(data = euni.df, aes(x = Year, y = Mass)) + geom_smooth(method = "lm") + geom_point(alpha = .3)
-ggplot(data = euni.df, aes(x = Year, y = Wing.Chord)) + geom_point(alpha = .3) + geom_smooth()
+ggplot(data = euni.df, aes(x = Year, y = Wing.Chord)) + geom_point(alpha = .3) + geom_smooth(method = "lm")
 
 # MOVE: Months Envi covs --------------------------------------------------
 ##Determine relevant months for environmental covariates## 
@@ -409,6 +410,51 @@ nrow(capriBAnr)
 #If you want to remove the 10 individuals that are repeated (w/ different ages, and selects adults) following code should work. Could use a RE to account for this so left in for now
 capri.fac <- filter(capriBAnr, !is.na(W.Lat)) #FAC = full annual cycle
 nrow(capri.fac) #Varied 186, 193, currently 189 unique birds..
+
+
+
+# Migration distance ------------------------------------------------------
+capri.fac <- transform(capri.fac, Str8line = distHaversine(cbind(capri.fac$B.Long, capri.fac$B.Lat), cbind(capri.fac$W.Long, capri.fac$W.Lat)) / 1000)
+TF <- capri.fac$Str8line < capri.fac$Mig.dist #13,14,19, 26
+capri.fac[ !TF ,c("Str8line", "Mig.dist","Project", "Band.Number")] %>% filter(Project == "NASKASWE") #Alicia used a different system to calculate migratory distance, so the numbers are slightly different. When she recalculated differences were <20km, so this is not very important on the scale of 4-5k km. 
+
+##Migration distance correlations by species
+capri.fac %>% group_by(Species) %>% summarize(cor = cor(Str8line, Mig.dist, use = "complete.obs"))
+
+capri.fac %>% filter(Species == "EUNI") %>% 
+  ggplot(aes(x = Str8line, y = Mig.dist)) +
+  geom_smooth(method = "lm") +
+  geom_point(aes(color = Project)) +
+  geom_abline(slope= 1, linetype = "dashed", color="Red") + 
+  ggtitle("Problematic EUNI Mig dist calculations")
+#facet_wrap(~Species)
+
+#Migration distance models. Does the variation in temporal schedule influence migration distance? Yes! Therefore, it is better to use the straight-line distance  
+
+capri.fac %>% group_by(Species) %>% 
+  summarize(mean = mean(Temp.res.mig,na.rm = T),
+            sd = sd(Temp.res.mig,na.rm = T),
+            max = max(Temp.res.mig,na.rm = T),
+            min = min(Temp.res.mig,na.rm = T))
+summary(capri.fac$Temp.res.mig) #Ranges from 7 points a day to 1 point every 10 days
+summary(lmer(Mig.dist ~ Temp.res.mig + (1| Species), data = capri.fac))
+
+##Overall plot
+ggplot(data= capri.fac, aes(x = Str8line, y = Mig.dist)) + 
+  geom_smooth(aes(color = Species), method = "lm", se = F, fullrange = T) + 
+  geom_point(aes(color = Species), size = 3, position = "jitter", alpha=.3) + 
+  geom_abline(slope= 1, linetype = "dashed", color="Black") #+ xlab("Departure Date") + ylab("Migration\nRate (km / day)") 
+
+
+#Move down to plotting section? Or create a Misc section
+#Evidence for leapfrog migration in EWPW and EUNI, but not CONI. Has this been reported previously in EUNI? 
+ggplot(data= capri.fac, aes(x = B.Lat, y = W.Lat)) + geom_smooth(method = "lm", se = TRUE, fullrange = F, aes(color = Species)) + geom_point(aes(color = Species), size =3, position = "jitter", alpha=.65) #+ xlab("Departure Date") + ylab("Migration\nRate (km / day)") 
+
+#How would you test this statistically? 
+summary(lmer(W.Lat ~ B.Lat + (1 | Species), data = capri.fac))
+summary(lmer(W.Long ~ B.Long + (1 | Species), data = capri.fac))
+
+#save.image(paste0(bs, "Desktop/Grad_School/R_Files/MS/BergAnalysis9.21.22.Rdata"))
 
 # MassCorrection ----------------------------------------------------------
 
@@ -602,52 +648,6 @@ summary(lm(Mass ~ B.Lat + Sex + Age, data = euniAgeM))  #<1% of variation
 summary(lm(Mass ~ B.Lat + Sex + Age, data = euniAgeM)) 
 
 summary(lm(Mass ~ Banding.Time, data = euni.m)) 
-
-
-##MEETING ELLY - ORGANIZE QUESTIONS, CHANGE ELLY HOUR VALUES, AND REMEMBER WHAT IDEA IS BEHIND THE MASS CORRECTION
-
-##Migration distance##
-capri.fac <- transform(capri.fac, Str8line = distHaversine(cbind(capri.fac$B.Long, capri.fac$B.Lat), cbind(capri.fac$W.Long, capri.fac$W.Lat)) / 1000)
-TF <- capri.fac$Str8line < capri.fac$Mig.dist #13,14,19, 26
-capri.fac[ !TF ,c("Str8line", "Mig.dist","Project", "Band.Number")] %>% filter(Project == "NASKASWE") #Alicia used a different system to calculate migratory distance, so the numbers are slightly different. When she recalculated differences were <20km, so this is not very important on the scale of 4-5k km. 
-
-##Migration distance correlations by species
-capri.fac %>% group_by(Species) %>% summarize(cor = cor(Str8line, Mig.dist, use = "complete.obs"))
-
-capri.fac %>% filter(Species == "EUNI") %>% 
-  ggplot(aes(x = Str8line, y = Mig.dist)) +
-  geom_smooth(method = "lm") +
-  geom_point(aes(color = Project)) +
-  geom_abline(slope= 1, linetype = "dashed", color="Red")
-  #facet_wrap(~Species)
-
-#Migration distance models. Does the variation in temporal schedule influence migration distance? Yes! Therefore, it is better to use the straight-line distance  
-
-capri.fac %>% group_by(Species) %>% 
-  summarize(mean = mean(Temp.res.mig,na.rm = T),
-            sd = sd(Temp.res.mig,na.rm = T),
-            max = max(Temp.res.mig,na.rm = T),
-            min = min(Temp.res.mig,na.rm = T))
-summary(capri.fac$Temp.res.mig) #Ranges from 7 points a day to 1 point every 10 days
-summary(lmer(Mig.dist ~ Temp.res.mig + (1| Species), data = capri.fac))
-
-##Overall plot
-ggplot(data= capri.fac, aes(x = Str8line, y = Mig.dist)) + 
-  geom_smooth(aes(color = Species), method = "lm", se = F, fullrange = T) + 
-  geom_point(aes(color = Species), size = 3, position = "jitter", alpha=.3) + 
-  geom_abline(slope= 1, linetype = "dashed", color="Black") #+ xlab("Departure Date") + ylab("Migration\nRate (km / day)") 
-
-
-#Move down to plotting section? Or create a Misc section
-#Evidence for leapfrog migration in EWPW and EUNI, but not CONI. Has this been reported previously in EUNI? 
-ggplot(data= capri.fac, aes(x = B.Lat, y = W.Lat)) + geom_smooth(method = "lm", se = TRUE, fullrange = F, aes(color = Species)) + geom_point(aes(color = Species), size =3, position = "jitter", alpha=.65) #+ xlab("Departure Date") + ylab("Migration\nRate (km / day)") 
-
-#How would you test this statistically? 
-summary(lmer(W.Lat ~ B.Lat + (1 | Species), data = capri.fac))
-summary(lmer(W.Long ~ B.Long + (1 | Species), data = capri.fac))
-
-#save.image(paste0(bs, "Desktop/Grad_School/R_Files/MS/BergAnalysis9.21.22.Rdata"))
-
 
 
 # rgee and environmental data ---------------------------------------------
