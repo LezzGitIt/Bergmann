@@ -62,7 +62,8 @@ Various <- VariousGC %>% mutate(Year = sapply(str_split(Banding.Date, "/"), func
 #Greg precision w/ decimals
 unique(str_sub(sapply(str_split(Various$B.Lat, "[.]"), function(x){x[2]}), start= -4))
 
-#EKconi
+
+#Merge Elly's data to create a single data frame 
 #EKconi2 <- smartbind(EKconiFAC, EKconiBr)
 EKconi %>% filter(duplicated(BandNumber) | duplicated(BandNumber, fromLast = T)) %>% arrange(BandNumber) %>% select(BandNumber, BandDate, BandTime, W.Lat, Year)
 
@@ -116,6 +117,8 @@ njdfs_all <- lapply(njdfs_all, function(x){x[,c(1:29)]})
 njdfs_all <- lapply(njdfs_all, setNames, cols)
 capri.df <- rbind(njdfs_all[[1]], njdfs_all[[2]], njdfs_all[[3]],njdfs_all[[4]], njdfs_all[[5]], njdfs_all[[6]], njdfs_all[[7]], njdfs_all[[8]], njdfs_all[[9]], njdfs_all[[10]], njdfs_all[[11]])
 #lapply(njdfs_all, function(x){head(x$Banding.Date)})
+
+read.csv("capriElly4.16.csv")
 
 #Adjust time & date
 capri.df <- as.data.frame(capri.df %>% filter(!is.na(B.Lat)) %>% replace_with_na_all(condition = ~.x %in% c(-99,-990, 9999, "<NA>", "-", ".", "na", 'NONABAND'))) #Few individuals removed w/ no B.Lat
