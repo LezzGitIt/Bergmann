@@ -41,8 +41,8 @@ MBewpw <-read.csv(paste0(bs, "Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/B
 JHeunj <-read.csv(paste0(bs, "Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/JH_Finland_v6.csv"))
 LJeunj <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/Nightjar_data_Denmark_Thorup_Jacobsen/LJ_eunj_2023_DK.csv")##SEE NEW sheet w/ updated age code
 GCeunj <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/GJC_Bergmann_UK_updated.csv")
-GNeunj <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/GN_Sweden_2023-03-07.csv")
-REeunj <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/Evens_EUNI/EvensLathouwers_data_sheet.csv")
+GNeunj <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/GN_Sweden_2023-04-20.csv")
+REeunj <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/Evens_EUNI/EvensLathouwers_data_sheet_corrected_stomach.csv")
 ITeunj <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/Boano_Italy_2023-03-23.csv")
 VariousGC <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/Various_EUNI_Breeding_only.csv")
 
@@ -118,8 +118,6 @@ njdfs_all <- lapply(njdfs_all, setNames, cols)
 capri.df <- rbind(njdfs_all[[1]], njdfs_all[[2]], njdfs_all[[3]],njdfs_all[[4]], njdfs_all[[5]], njdfs_all[[6]], njdfs_all[[7]], njdfs_all[[8]], njdfs_all[[9]], njdfs_all[[10]], njdfs_all[[11]])
 #lapply(njdfs_all, function(x){head(x$Banding.Date)})
 
-#START HERE
-read.csv("capriElly4.16.csv")
 
 #Adjust time & date
 capri.df <- as.data.frame(capri.df %>% filter(!is.na(B.Lat)) %>% replace_with_na_all(condition = ~.x %in% c(-99,-990, 9999, "<NA>", "-", ".", "na", 'NONABAND'))) #Few individuals removed w/ no B.Lat
@@ -128,7 +126,23 @@ capri.df <- capri.df %>% mutate(Species = ifelse(capri.df$Species == "Ceur" | ca
                     Band.Number = stri_replace_all_regex(capri.df$Band.Number,
                                            pattern=c('-', ' '),
                                            replacement=c(''),
-                                           vectorize=FALSE))
+                                           vectorize=FALSE)) %>%
+  arrange(is.na(W.Lat), Species, Project) %>% 
+                    mutate(rowID = row_number())
+
+
+capri.df %>% filter(hms(Banding.Time) > hms("06:00:00") & hms(Banding.Time) < hms("18:00:00")) %>% select(Project, Band.Number, Banding.Time, W.Lat, Age) %>% arrange(Band.Number, Project, Banding.Time)
+
+##DELETE later
+#Ran through script up to this point and nothing else before creating df. Add row number here and should be a clean match.
+
+CapDfElly <- capri.df %>% select(c("rowID", "Species", "Project", "Banding.Date", "Band.Number","B.Lat", "B.Long", "W.Lat", "W.Long")) 
+nrow(CapDfElly) #7312 rows
+write.csv(CapDfElly, file = "/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/CapDfElly.csv", row.names = F) 
+##
+
+capri.df %>% filter(rowID %in% c(50, 51))
+
 
 capri.df$Banding.Time <- str_pad(capri.df$Banding.Time, 4, pad = "0")
 capri.df$Banding.Time <- sapply(str_split(parse_date_time(capri.df[,c("Banding.Time")], c("HMS"), truncated = 3), " "), function(x){x[2]})
@@ -188,18 +202,11 @@ capri.df <- capri.df %>% filter(Age != "1" & Age != "L" & Age != "3") %>% #1st r
          Sex = trimws(Sex))
 table(capri.df$Age) 
 
-##DELETE later
-#Ran through script up to this point and nothing else before creating df. Add row number here and should be a clean match.
-CapDfElly <- capri.df %>% mutate(rowID = row_number()) %>% select(c("rowID", "Species", "Project", "Banding.Date", "Band.Number","B.Lat", "B.Long", "W.Lat", "W.Long")) 
-nrow(CapDfElly) #5927 rows
-#write.csv(CapDfElly, file = "/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/CapDfElly.csv", row.names = F) 
-##
-
 nrow(capri.df)
 nrow(capriMut) #No migrants
 nrow(capriBAnr) #No repeats
 
-
+View(capri.df)
 
 # Data entry errors / outliers for Wing & mass ----------------------------
 capri.df %>% group_by(Species) %>% summarize(mnWing = mean(Wing.Chord, na.rm = T), 
@@ -238,13 +245,14 @@ summary(lm(Wing.Chord ~ scale(Year) + B.Lat + Age, data = euni.df))
 ggplot(data = euni.df, aes(x = Year, y = Mass)) + geom_smooth(method = "lm") + geom_point(alpha = .3)
 ggplot(data = euni.df, aes(x = Year, y = Wing.Chord)) + geom_point(alpha = .3) + geom_smooth(method = "lm")
 
+
 # MOVE: Months Envi covs --------------------------------------------------
 ##Determine relevant months for environmental covariates## 
 capri.df %>% filter(Warr.md < as.POSIXct("2024-03-01")) %>% dplyr::select(Species, Bdep.md, Warr.md) %>% group_by(Species) %>% summarize(N = n(), MeanDep = mean(Bdep.md, na.rm = T), sdDep = sd(Bdep.md, na.rm = T), MeanArr = mean(Warr.md, na.rm = T), sdArr = sd(Warr.md, na.rm = T))
 #Determine dates when migrants may be present
 capri.df %>% dplyr::select(Species, Project, B.Lat, Band.md, Bdep.md) %>% mutate(BlatR = round(B.Lat, -1)) %>% group_by(Species, BlatR) %>% summarize(n = n(), MinBand = min(Band.md, na.rm = T), MeanBand = mean(Band.md, na.rm = T), MaxBand = max(Band.md, na.rm = T), minDep = min(Bdep.md, na.rm = T), MeanDep = mean(Bdep.md, na.rm = T), sdDep = sd(Bdep.md, na.rm = T)) %>% mutate(Cutoff = MeanDep - sdDep, TF = Cutoff > MaxBand)
 #Not an issue for CONI or EWPW. For EUNI though.. Birds leave as early as August 1 at 60+ degrees North. Average date of departure at 60N is 8-17, so let's subtract 1 sd and get cutoff date of 08-06
-##For spring migration for EUNI, both Evens (2017) and Norevik (2017) agree that birds depart wintering grounds in late February, but arrival date is "early May" for Evens and May 16 for Norevik (2017), 12 birds in each paper but only 9 made it for spring migration in Evens. Given May 16 is so close to cut-off anyways, probably makes sense to exclude month of May. 
+##For spring migration for EUNI, both Evens (2017) and Norevik (2017) agree that birds depart wintering grounds in late February, but arrival date is "early May" for Evens and May 16 for Norevik (2017), 12 birds in each paper but only 9 made it for spring migration in Evens. Given May 16 is so close to cut-off anyways, probably makes sense to include month of May. 
 #For EWPW, cite my paper for spring departure as March 20th and arrival as April 17th, English (2017) departure = March 21, arrival = May 1. These 2 refs are in agreement.
 #For CONI, Elly says to use Nov - March for winter and May - August for breeding.
 
@@ -269,7 +277,8 @@ euni.df %>% filter(Project == "NASKASWE") %>% mutate(Fat = as.numeric(Fat)) %>% 
 ggsave('Fat_date_Norevik.png')
 table(euni.df$Project)
 
-euni.dfRes <- euni.df %>% filter(Band.md > as.POSIXct("2023-04-30") & Band.md < as.POSIXct("2023-08-06"))
+nrow(euni.dfRes)
+euni.dfRes <- euni.df %>% filter(Band.md > as.POSIXct("2023-05-16") & Band.md < as.POSIXct("2023-08-06"))
 #Retest effect of band month
 summary(lm(Mass ~ Band.md + B.Lat + Age, data = euni.dfRes)) #poly() gives error for band.md
 summary(lm(Wing.Chord ~ Band.md + B.Lat + Age, data = euni.dfRes)) #Would need to remove Age == "Unk"
@@ -281,7 +290,7 @@ anova(lm(Wing.Chord ~  Band.md + B.Lat + Age , data = euniRes))
 
 
 #Remove potential migrants, leaving just residents (res). 5974 individuals to 5593. If you adjust the spring date to some time in May need to ensure that no individuals w/ winter data are excluded.
-euniRes <- capri.df %>% filter(Species == "EUNI" & Band.md > as.POSIXct("2023-04-30") & Band.md < as.POSIXct("2023-08-06") & is.na(W.Lat))
+euniRes <- capri.df %>% filter(Species == "EUNI" & Band.md > as.POSIXct("2023-05-16") & Band.md < as.POSIXct("2023-08-06") & is.na(W.Lat))
 euniFAC <- capri.df %>% filter(Species == "EUNI" & !is.na(W.Lat))
 coni.ewpw <- capri.df %>% filter(Species != "EUNI" & Band.md > as.POSIXct("2023-04-30")) 
 capri.df <- rbind(euniRes, euniFAC, coni.ewpw)
@@ -407,6 +416,7 @@ capriBA %>% count(Band.Number, Age) %>% count(Band.Number) %>% filter(n > 1) #ma
 capriBAnr <- capriBA %>% group_by(Band.Number) %>% arrange(is.na(W.Lat), Age) %>% slice_head() #nr = no repeats 
 nrow(capriBAnr)
 
+
 #If you want to remove the 10 individuals that are repeated (w/ different ages, and selects adults) following code should work. Could use a RE to account for this so left in for now
 capri.fac <- filter(capriBAnr, !is.na(W.Lat)) #FAC = full annual cycle
 nrow(capri.fac) #Varied 186, 193, currently 189 unique birds..
@@ -459,24 +469,50 @@ summary(lmer(W.Long ~ B.Long + (1 | Species), data = capri.fac))
 # MassCorrection ----------------------------------------------------------
 
 #1. Read in data----
-df <- capriBA %>% summarize(date = as.Date(Banding.Date), 
-                            lat = B.Lat, 
-                            lon = B.Long,
-                            DateTime = ymd_hms(paste(as.character(Banding.Date), BT.comb)),
-                            BT.comb = BT.comb)
+library(lutz)
+df <- capri.df %>% summarize(date = as.Date(Banding.Date), 
+                             lat = B.Lat, 
+                             lon = B.Long,
+                             DateTime = ymd_hms(paste(as.character(Banding.Date), Banding.Time)),
+                             Banding.Time = Banding.Time, 
+                             Project = Project,
+                             Band.Age = Band.Age,
+                             rowID = rowID) %>% 
+  mutate(tz=tz_lookup_coords(lat, lon, method="accurate"))
 
-#2. Get time relative to sunset----
-df$sunset <- getSunlightTimes(data = df)$sunset #Elly had tz="America/Edmonton"
-df$tsss <- as.numeric(difftime(df$DateTime, df$sunset), units="hours") #tsss = time since sunset
-df %>% arrange(sunset) %>% filter(!is.na(tsss)) %>% select(sunset, DateTime, tsss, lat, lon)
+tzs <- unique(df$tz)
+dftz <- list()
+for(i in 1:length(tzs)){
+  dftz[[i]] <- df %>% filter(tz == tzs[i])
+  #sunsets[[i]] <- getSunlightTimes(data = dftz)$sunset
+  dftz[[i]]$sunset <- getSunlightTimes(data=dftz[[i]], keep="sunset", tz=tzs[i])$sunset
+}
+?getSunlightTimes
 
-capriBA %>% filter(hms(Banding.Time) > hms("06:00:00") & hms(Banding.Time) < hms("18:00:00")) %>% select(Project, Band.Number, Banding.Time, tsss, W.Lat, Age) %>% arrange(Project, Banding.Time)
-capriBA$Banding.Time[c(3000:4000)]
+dftz <- lapply(dftz, function(x){ force_tz(x, "UTC")})
+sun_df <- bind_rows(dftz) #Confirmed this is good 4.26.23
+#CHECK
+sun_df %>% arrange(format(sun_df$sunset, format = "%H:%M:%S"))
+
+#Subtract a day from sunset time if bird was caught early in the AM 
+sun_df <- sun_df %>% mutate(sunset = as_datetime(ifelse(hms(Banding.Time) < hms("09:00:00"), ymd_hms(sunset) - lubridate::days(1), ymd_hms(sunset))))
+
+sun_df$tsss <- as.numeric(difftime(sun_df$DateTime, sun_df$sunset), units="hours") #tsss = time since sunset
+#CHECK
+sun_df %>% arrange(tsss) %>% filter(!is.na(tsss)) %>% select(sunset, DateTime, tsss, lat, lon)
+hist(sun_df$tsss)
+
+
 
 capriBA <- cbind(capriBA, df["tsss"])
 #capriBA <- capriBA %>% select(-"tsss")
 
-#I'll need to adjust this for new set of times I think?
+#Confirm this with combined tsss not Banding time 
+capriBA %>% filter(hms(Banding.Time) > hms("06:00:00") & hms(Banding.Time) < hms("18:00:00")) %>% select(Project, Band.Number, BT.comb, Banding.Time, tsss, W.Lat, Age) %>% arrange(Band.Number, Project, Banding.Time)
+capriBA$Banding.Time[c(3000:4000)]
+
+
+#I'll need to adjust this for new set of times I think? DELETE
 use <- capriBA %>% 
   mutate(tsss = as.numeric(ifelse(tsss < -12, tsss+24, tsss))) %>% 
   #arrange(tsss) %>% select(sunset, DateTime, tsss, lat, lon) #visualize
