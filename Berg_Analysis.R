@@ -1,22 +1,15 @@
 ##Bergmann's Rule in Caprimulgids##
 
-bs <- "/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/"
-#load(paste0(bs, "Desktop/Grad_School/R_Files/MS/BergAnalysis7.27.22.Rdata"))
-
-library(dplyr)
-select <- dplyr::select
+library(tidyverse)
 library(lme4)
 library(lmerTest)
-library(ggplot2)
 library(ggpubr)
 library(viridis)
 library(sp)
 library(sf)
 library(geosphere)
 library(GeoWsphere)
-library(lubridate)
 library(stringi)
-library(stringr)
 library(gtools)
 library(naniar)
 library(cowplot)
@@ -29,7 +22,11 @@ library(readxl)
 library(chron)
 library(suncalc)
 #library(conflicted)
+select <- dplyr::select
 ggplot2::theme_set(theme_cowplot())
+
+bs <- "/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/"
+#load(paste0(bs, "Desktop/Grad_School/R_Files/MS/BergAnalysis7.27.22.Rdata"))
 
 # Load and format data ----------------------------------------------------
 #load(paste0(bs,"Desktop/Grad_School/MS/EWPW/Data_Whips/Analysis/R_Files/spdf.all.tr.Rdata"))
@@ -65,8 +62,6 @@ unique(str_sub(sapply(str_split(Various$B.Lat, "[.]"), function(x){x[2]}), start
 
 #Merge Elly's data to create a single data frame 
 #EKconi2 <- smartbind(EKconiFAC, EKconiBr)
-EKconi %>% filter(duplicated(BandNumber) | duplicated(BandNumber, fromLast = T)) %>% arrange(BandNumber) %>% select(BandNumber, BandDate, BandTime, W.Lat, Year)
-
 EKconiFAC <- EKconiFAC %>% filter(Wint.Loc == 1)
 EKconiFAC$uniq.ID <- with(EKconiFAC, paste0(BandNumber, "_", TagID))
 EKconiBr$uniq.ID <- with(EKconiBr, paste0(BandNumber, "_", TagID))
@@ -87,7 +82,7 @@ EKconi <- EKconi %>%
   select(c(2:23,25,26,32,33,28,29,36,24)) %>%
   mutate(BandNumber = ifelse(BandNumber == "Unbanded" & !is.na(TagID), TagID, BandNumber)) %>%
   mutate(BandNumber = ifelse(BandNumber == "Unbanded" | BandNumber == "-99", paste0("Unbanded", c(1:nrow(EKconi))), BandNumber))
-#Ensure that the TagID replaced 'Unbanded' and that Unbandeds are now unique
+#CHECK::Ensure that the TagID replaced 'Unbanded' and that Unbandeds are now unique
 EKconi %>% arrange(BandNumber) %>% select(BandNumber, TagID)
 
 AKewpw$Project <- "Korpach"
@@ -117,31 +112,21 @@ njdfs_all <- lapply(njdfs_all, function(x){x[,c(1:29)]})
 njdfs_all <- lapply(njdfs_all, setNames, cols)
 capri.df <- rbind(njdfs_all[[1]], njdfs_all[[2]], njdfs_all[[3]],njdfs_all[[4]], njdfs_all[[5]], njdfs_all[[6]], njdfs_all[[7]], njdfs_all[[8]], njdfs_all[[9]], njdfs_all[[10]], njdfs_all[[11]])
 #lapply(njdfs_all, function(x){head(x$Banding.Date)})
+#lapply(njdfs_all, function(x){parse_date_time(x[,c("Banding.Date")], c("mdy", "ymd"))})
 
 
 #Adjust time & date
 capri.df <- as.data.frame(capri.df %>% filter(!is.na(B.Lat)) %>% replace_with_na_all(condition = ~.x %in% c(-99,-990, 9999, "<NA>", "-", ".", "na", 'NONABAND'))) #Few individuals removed w/ no B.Lat
-nrow(capri.df) #6857 rows
+nrow(capri.df) 
 capri.df <- capri.df %>% mutate(Species = ifelse(capri.df$Species == "Ceur" | capri.df$Species == "European Nightjar" | capri.df$Species == "European Nigthtjar", "EUNI", capri.df$Species),
                     Band.Number = stri_replace_all_regex(capri.df$Band.Number,
                                            pattern=c('-', ' '),
                                            replacement=c(''),
                                            vectorize=FALSE)) %>%
-  arrange(is.na(W.Lat), Species, Project) %>% 
-                    mutate(rowID = row_number())
+  arrange(is.na(W.Lat), Species, Project) #%>% 
+                    #mutate(rowID = row_number()) #Remove nestlings first then create rowID
 
-
-capri.df %>% filter(hms(Banding.Time) > hms("06:00:00") & hms(Banding.Time) < hms("18:00:00")) %>% select(Project, Band.Number, Banding.Time, W.Lat, Age) %>% arrange(Band.Number, Project, Banding.Time)
-
-##DELETE later
-#Ran through script up to this point and nothing else before creating df. Add row number here and should be a clean match.
-
-CapDfElly <- capri.df %>% select(c("rowID", "Species", "Project", "Banding.Date", "Band.Number","B.Lat", "B.Long", "W.Lat", "W.Long")) 
-nrow(CapDfElly) #7312 rows
-write.csv(CapDfElly, file = "/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/CapDfElly.csv", row.names = F) 
-##
-
-capri.df %>% filter(rowID %in% c(50, 51))
+head(capri.df)
 
 
 capri.df$Banding.Time <- str_pad(capri.df$Banding.Time, 4, pad = "0")
@@ -149,8 +134,9 @@ capri.df$Banding.Time <- sapply(str_split(parse_date_time(capri.df[,c("Banding.T
 capri.df$Banding.Time <- chron(times = capri.df$Banding.Time)
 capri.df$Year <- str_pad(capri.df$Year, 3, pad = "0")
 capri.df$Year <- str_pad(capri.df$Year, 4, pad = "2")
-#Ensure that this worked
+#CHECK::Ensure that this worked
 capri.df %>% select(Project, Year) %>% mutate(ncharYr = nchar(as.character(Year))) %>% arrange(ncharYr, desc(Year))
+
 
 #Format times & dates, data types#
 capri.df[,c("Wing.Chord","Mass","W.Lat", "W.Long", "Mig.dist", "Year")] <- lapply(capri.df[,c("Wing.Chord","Mass","W.Lat", "W.Long", "Mig.dist", "Year")], as.numeric)
@@ -159,21 +145,21 @@ capri.df[c("Banding.Date", "B.dep", "W.arr")] <- lapply(capri.df[c("Banding.Date
 capri.df[,c("Band.md","Bdep.md", "Warr.md")] <- lapply(capri.df[,c("Banding.Date", "B.dep", "W.arr")], format, "%m/%d")
 capri.df[,c("Band.md","Bdep.md", "Warr.md")] <- lapply(capri.df[,c("Band.md","Bdep.md", "Warr.md")], as.Date, "%m/%d")
 capri.df$Warr.md <- as.Date(ifelse(capri.df$Warr.md < as.POSIXct("2023-04-01"), capri.df$Warr.md + lubridate::years(1), capri.df$Warr.md)) 
-nrow(capri.df) #6857 rows
+nrow(capri.df) 
 str(capri.df)
 
 #Ensure no NAs that could cause problems downstream. DELETE?
 lapply(capri.df, summary)
 
 #Take a closer look at birds with wintering data
-facRed <- capri.df %>% filter(!is.na(W.Lat)) %>% select(Project, Banding.Date, Banding.Time, Year, Band.Number, Age, Sex, Mass, Wing.Chord, B.dep, W.arr) #fac reduced
+facRed <- capri.df %>% filter(!is.na(W.Lat)) %>% select(Project, Banding.Date, Banding.Time, Year, Band.Number, Age, Sex, Mass, Wing.Chord, B.dep, W.arr, W.Lat, W.Long) #fac reduced
 lapply(facRed, function(x) {table(is.na(x))})
 table(facRed$Age)
 facRed %>% filter(!duplicated(Band.Number)) %>% nrow() #Should end with 189 unique individuals!
 
 btna <- facRed %>% filter(is.na(Banding.Time)) #banding time NAs
 TF <- capri.df$Band.Number %in% btna$Band.Number
-capri.df[TF,] %>% arrange(Band.Number) %>% select(Project, Site.name, Banding.Date, Banding.Time, Year, Band.Number, TagID, Mass, W.Lat) %>% filter(Project == "EvensLathouwers") %>% select(Band.Number) %>% pull() %>% unique() #Wing.Chord, Mass,
+capri.df[TF,] %>% arrange(Band.Number) %>% select(Project, Site.name, Banding.Date, Banding.Time, Year, Band.Number, TagID, Mass, W.Lat) %>%  select(Band.Number) %>% pull() %>% unique() #Wing.Chord, Mass,
 
 facRed %>% filter(is.na(Wing.Chord))
 capri.df %>% filter(Band.Number == 137257703)
@@ -201,12 +187,18 @@ capri.df <- capri.df %>% filter(Age != "1" & Age != "L" & Age != "3") %>% #1st r
                          Age == "TY" ~ "Adult"),
          Sex = trimws(Sex))
 table(capri.df$Age) 
-
 nrow(capri.df)
-nrow(capriMut) #No migrants
-nrow(capriBAnr) #No repeats
 
-View(capri.df)
+
+##DELETE later
+#Ran through script up to this point and nothing else before creating df. Add row number here and should be a clean match.
+
+##
+CapDfElly <- capri.df %>% mutate(rowID = row_number()) %>% select(c("rowID", "Species", "Project", "Banding.Date", "Band.Number","B.Lat", "B.Long", "W.Lat", "W.Long")) 
+capri.df <- capri.df %>% mutate(rowID = row_number()) #8.14.23 Adding row_number() here, but notice row_number was previously added above. NEED TO CONFIRM BEFORE MERGING ENVIRONMENTAL DATA W/ ELLY
+nrow(CapDfElly) #5927 rows
+#write.csv(CapDfElly, file = "/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/CapDfElly.csv", row.names = F) 
+##
 
 # Data entry errors / outliers for Wing & mass ----------------------------
 capri.df %>% group_by(Species) %>% summarize(mnWing = mean(Wing.Chord, na.rm = T), 
@@ -218,49 +210,177 @@ capri.df %>% arrange(Mass) %>% select(Project, Species, Age, Wing.Chord, Mass, Y
 capri.df %>% ggplot(aes(Mass, Species)) + geom_boxplot()
 capri.df %>% ggplot(aes(Wing.Chord, Species)) + geom_boxplot()
 
+#CHECK::Are there individuals banded during the day? Do they have wintering information? 
+capri.df %>% filter(hms(Banding.Time) > hms("06:00:00") & hms(Banding.Time) < hms("18:00:00")) %>% select(Project, Band.Number, Banding.Time, tsss, W.Lat, Age) %>% arrange(Band.Number, Project, Banding.Time)
+
 ##Remove individuals with crazy numbers
 nrow(capri.df)
+#Remove 13 individuals banded during the day
+capri.df <- capri.df %>% 
+  filter(hms(Banding.Time) < hms("08:05:00") | hms(Banding.Time) > hms("18:00:00")) %>%
+  rbind(capri.df %>% filter(is.na(Banding.Time))) #Rbinds previous output with times equal to NA 
 capri.df <- capri.df %>% filter(is.na(Wing.Chord) | Wing.Chord < 250 & Wing.Chord > 30)
 
 capri.df %>% ggplot(aes(Wing.Chord)) + geom_histogram() + facet_wrap(~Species)
 capri.df %>% ggplot(aes(Mass)) + geom_histogram() + facet_wrap(~Species)
 
 
+# MassCorrection ----------------------------------------------------------
+
+#1. Read in data----
+library(lutz)
+df <- capri.df %>% summarize(date = as.Date(Banding.Date), 
+                             lat = B.Lat, 
+                             lon = B.Long,
+                             DateTime = ymd_hms(paste(as.character(Banding.Date), Banding.Time)),
+                             Banding.Time = Banding.Time, 
+                             Project = Project,
+                             rowID = rowID) %>% 
+  mutate(tz=tz_lookup_coords(lat, lon, method="accurate"))
+
+tzs <- unique(df$tz)
+dftz <- list()
+for(i in 1:length(tzs)){
+  dftz[[i]] <- df %>% filter(tz == tzs[i])
+  #sunsets[[i]] <- getSunlightTimes(data = dftz)$sunset
+  dftz[[i]]$sunset <- getSunlightTimes(data=dftz[[i]], keep="sunset", tz=tzs[i])$sunset
+}
+
+dftz <- lapply(dftz, function(x){ force_tz(x, "UTC")})
+sun_df <- bind_rows(dftz) #Confirmed this is good 4.26.23
+#CHECK
+sun_df %>% arrange(format(sun_df$sunset, format = "%H:%M:%S"))
+
+#Subtract a day from sunset time if bird was caught early in the AM 
+sun_df <- sun_df %>% mutate(sunset = as_datetime(ifelse(hms(Banding.Time) < hms("09:00:00"), ymd_hms(sunset) - lubridate::days(1), ymd_hms(sunset))))
+
+sun_df$tsss <- as.numeric(difftime(sun_df$DateTime, sun_df$sunset), units="hours") #tsss = time since sunset
+#CHECK
+sun_df %>% arrange(tsss) %>% filter(!is.na(tsss)) %>% select(sunset, DateTime, tsss, lat, lon)
+hist(sun_df$tsss)
+
+capri.df <- merge(capri.df, sun_df[,c("rowID", "tsss", "sunset")], by = "rowID")
+#Visualize
+hist(capri.df$tsss)
+
+
+#I'll need to adjust this for new set of times I think? DELETE
+use <- capriBA %>% 
+  mutate(tsss = as.numeric(ifelse(tsss < -12, tsss+24, tsss))) %>% 
+  #arrange(tsss) %>% select(sunset, DateTime, tsss, lat, lon) #visualize
+  dplyr::filter(tsss > -5, 
+                tsss < 8)
+hist(df$tsss)
+hist(use$tsss)
+
+#3. Look at recaptures---- ###NEED to reorder this 
+recap <- capriBAnr %>% 
+  group_by(Band.Number, Year) %>% 
+  summarize(captures = n()) %>% 
+  # ungroup() %>% 
+  dplyr::filter(captures > 1) %>% 
+  left_join(capriBAnr)
+
+#4. Visualize----
+#Old
+capriBAnr %>% 
+  #mutate(Banding.Time = ifelse(Banding.Time < .5, Banding.Time + 1, Banding.Time)) %>% 
+  ggplot(aes(x = Banding.Time)) + geom_histogram(color = "black") #1.00 is midnight, every .25 should be a 6 hour period
+
+Sys.setenv(TZ='GMT')
+capriBAnr %>% 
+  ggplot(aes(x = Banding.Time)) + geom_histogram(color = "black") + scale_x_chron(format="%H:%M")
+
+#Can't figure out how to rename the facets of this plot, might be important
+#Species <- c("Nighthawk", "Nightjar", "Whip-poor-will")
+#names(Species) <-  c("Nighthawk", "Nightjar", "Whip-poor-will")
+#, labeller = labeller(Species = Species) in facet_wrap call
+
+ggplot(capriBAnr) +
+  geom_jitter(alpha = .3, aes(x=tsss, y= Mass.combBT)) +
+  geom_smooth(aes(x=tsss, y= Mass.combBT)) + 
+  facet_wrap(~Species) + labs(x = "Time since sunset (hrs)", y = "Mass")
+ggsave("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Results/Figures/Tsss_Mass_facet.png", bg = "white")
+
+#Just CONI
+capriBAnr %>% filter(Species == "CONI") %>% ggplot() +
+  geom_jitter(aes(x=tsss, y= Mass.combBT)) +
+  geom_smooth(aes(x=tsss, y= Mass.combBT)) 
+
+ggplot(capriBAnr) +
+  geom_jitter(alpha = .3, aes(x=tsss, y=Mass.combBT, colour=factor(round(B.Lat, -1)))) +
+  geom_smooth(aes(x=tsss, y=Mass.combBT, colour=factor(round(B.Lat, -1)))) +
+  facet_wrap(~Species)
+
+ggplot(capriBAnr) +
+  geom_point(aes(x=jday, y=Mass.combBT, colour=factor(round(lat, -1)))) +
+  geom_smooth(aes(x=jday, y=Mass.combBT, colour=factor(round(lat, -1))), method="lm") +
+  facet_wrap(~Year)
+
+ggplot(recap) +
+  geom_point(aes(x=tsss, y=Mass.combBT, colour=Band.Number)) +
+  geom_line(aes(x=tsss, y=Mass.combBT, colour=Band.Number)) +
+  geom_smooth(aes(x=tsss, y=Mass.combBT)) #Overall line isn't really informative ?
+
+
 # Year effect -------------------------------------------------------------
-ggplot(data = capri.df, aes(Year)) +  geom_histogram() + facet_wrap(~ Species)
+ggplot(data = capri.df, aes(Year)) + geom_histogram() + facet_wrap(~ Species)
 ggsave('Histogram_Years_Species.png')
 
-data.frame(euni.df %>% group_by( Year, round(B.Lat, -1)) %>% count(Year))
+euni.df <- capri.df %>% filter(Species == "EUNI" & Age != "Unk") #Year > 1989. Removing unknown age birds also removes the really old birds from the dataset 
+nrow(euni.df)
+
+
+
+table(euni.df$Year)
+
+sort(year(dmy(VariousGC$Banding.Date)))
+2022-1967
+
+data.frame(euni.df %>% group_by(Year, round(B.Lat, -1)) %>% count(Year))
 
 ggplot(data = euni.df, aes(Year, B.Lat)) + geom_hex()
+ggplot(data = Various, aes(Year, B.Lat)) + geom_hex() #Visualize Greg's data set
 ggplot(data = euni.df, aes(Year, B.Lat)) + geom_point()
 
-#What should we do about Year / the month that birds were banded? Consider model w/ species RE? 
-euni.df <- capri.df %>% filter(Species == "EUNI" & Age != "Unk" & Year > 1989)
-nrow(euni.df)
-#There is substantial evidence that body size tracks temperature changes through time fairly rapidly (i.e., within X years) (Weeks, 2020). CONI data was collected over 5 years (2015 - 2019) and EWPW over 6 years (2017-2022), thus we did not 
+
 with(capri.df, table(Species, Year))
-summary(lm(Mass ~ scale(Year) * B.Lat + Age, data = euni.df)) 
-summary(lm(Wing.Chord ~ scale(Year) + B.Lat + Age, data = euni.df)) 
+summary(lm(Mass ~ scale(Year) + B.Lat + Age, data = euni.df)) 
+summary(lm(Wing.Chord ~ B.Lat + Age, data = euni.df)) 
+summary(lm(B.Lat ~ scale(Year), data = euni.df)) 
+
+ggplot(data = euni.df, aes(x = Year, y = B.Lat)) + geom_smooth() + geom_point(alpha = .3)
 ggplot(data = euni.df, aes(x = Year, y = Mass)) + geom_smooth(method = "lm") + geom_point(alpha = .3)
 ggplot(data = euni.df, aes(x = Year, y = Wing.Chord)) + geom_point(alpha = .3) + geom_smooth(method = "lm")
 
+plots <- list()
+for(i in 1:3){
+  print(i)
+  df <- capri.df %>% filter(Species == loop2$Species[i])
+  plots[[i]] <- ggplot(data = df, aes(x = Year, y = B.Lat)) + geom_point(alpha = .3) + geom_smooth()
+  print(plots[[i]])
+}
+
+#For now, I think 
+capri.df <- capri.df %>% filter(Year >= 2010 )
+ggplot(data = capri.df, aes(Year, B.Lat)) + geom_jitter(alpha = .2, width = .4, height = .8, aes(color = Species)) + ylab("Breeding Latitude") + scale_color_discrete(labels = c("Nighthawk", "Nightjar", "Whip-poor-will")) #+ ggtitle("Temporal sampling resolution \n by breeding latitude")
+ggsave("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Results/Figures/Temporal_sampling_Blat.png", bg = "white")
 
 # MOVE: Months Envi covs --------------------------------------------------
 ##Determine relevant months for environmental covariates## 
 capri.df %>% filter(Warr.md < as.POSIXct("2024-03-01")) %>% dplyr::select(Species, Bdep.md, Warr.md) %>% group_by(Species) %>% summarize(N = n(), MeanDep = mean(Bdep.md, na.rm = T), sdDep = sd(Bdep.md, na.rm = T), MeanArr = mean(Warr.md, na.rm = T), sdArr = sd(Warr.md, na.rm = T))
 #Determine dates when migrants may be present
 capri.df %>% dplyr::select(Species, Project, B.Lat, Band.md, Bdep.md) %>% mutate(BlatR = round(B.Lat, -1)) %>% group_by(Species, BlatR) %>% summarize(n = n(), MinBand = min(Band.md, na.rm = T), MeanBand = mean(Band.md, na.rm = T), MaxBand = max(Band.md, na.rm = T), minDep = min(Bdep.md, na.rm = T), MeanDep = mean(Bdep.md, na.rm = T), sdDep = sd(Bdep.md, na.rm = T)) %>% mutate(Cutoff = MeanDep - sdDep, TF = Cutoff > MaxBand)
-#Not an issue for CONI or EWPW. For EUNI though.. Birds leave as early as August 1 at 60+ degrees North. Average date of departure at 60N is 8-17, so let's subtract 1 sd and get cutoff date of 08-06
-##For spring migration for EUNI, both Evens (2017) and Norevik (2017) agree that birds depart wintering grounds in late February, but arrival date is "early May" for Evens and May 16 for Norevik (2017), 12 birds in each paper but only 9 made it for spring migration in Evens. Given May 16 is so close to cut-off anyways, probably makes sense to include month of May. 
+#Not an issue for CONI or EWPW. For EUNI though.. Birds leave as early as August 1 at 60+ degrees North. Average date of departure at 60N is 8-17, so let's subtract 1 sd and get cutoff date of 08-06. Alternatively, just remove everything banded after 08-01
+##For spring migration for EUNI, both Evens (2017) and Norevik (2017) agree that birds depart wintering grounds in late February, but arrival date is "early May" for Evens (earliest April 28) and average May 16 (earliest May 5) for Norevik (2017), 12 birds in each paper but only 9 made it for spring migration in Evens. Given May 16 is so close to cut-off anyways, probably makes sense to include month of May. 
 #For EWPW, cite my paper for spring departure as March 20th and arrival as April 17th, English (2017) departure = March 21, arrival = May 1. These 2 refs are in agreement.
 #For CONI, Elly says to use Nov - March for winter and May - August for breeding.
 
 
 # Banding date effect -----------------------------------------------------
 #Ensure banding dates are reasonable
-capri.df %>% filter(Species == "EUNI" ) %>% dplyr::select(Species, Project, Band.md, W.Lat, Band.Number) %>% arrange(Band.md) %>% slice_head(n = 10)
-capri.df %>% filter(Species == "EUNI") %>% dplyr::select(Species, Project, Band.md, W.Lat, Band.Number) %>% arrange(desc(Band.md)) %>% slice_head(n = 10)
+capri.df %>% filter(Species == "EUNI" ) %>% dplyr::select(Species, Project, Country, Band.md, W.Lat, Band.Number) %>% arrange(Band.md) %>% slice_head(n = 10)
+capri.df %>% filter(Species == "EUNI") %>% dplyr::select(Species, Project, Country, Band.md, W.Lat, Band.Number) %>% arrange(desc(Band.md)) %>% slice_head(n = 10)
 
 #Check sample sizes 
 capri.df %>% filter(Species == "EUNI") %>% 
@@ -271,14 +391,34 @@ capri.df %>% filter(!is.na(W.Lat) & (Band.md > as.POSIXct("2023-04-30") & !is.na
 #Effect of band month statistically
 summary(lm(Mass ~ Band.md + B.Lat + Age, data = euni.df)) #poly() gives error for band.md
 summary(lm(Wing.Chord ~ Band.md + B.Lat + Age, data = euni.df)) 
-ggplot(data = euni.df, aes(x = Band.md, y = Wing.Chord)) + geom_point(alpha = .3) + geom_smooth()
-ggplot(data = euni.df, aes(x = Band.md, y = Mass)) + geom_point(alpha = .3) + geom_smooth() 
+
+#Plotting, Mass ~ band date. Ultimately, this is not useful as there is too much influencing mass (B.Lat, tsss, etc.). Best to go off of fat scores
+ggplot(data = euni.dfRes, aes(x = Band.md, y = Mass)) + geom_point(alpha = .3) + geom_smooth() 
+ggplot(data = ewpw.m, aes(x = Band.md, y = Mass)) + geom_point(alpha = .3) + geom_smooth() 
+ggplot(data = coni.m, aes(x = Band.md, y = Mass)) + geom_point(alpha = .3) + geom_smooth() 
+
+#Plotting, Fat ~ band date
+#Gabriel's EUNI data 
 euni.df %>% filter(Project == "NASKASWE") %>% mutate(Fat = as.numeric(Fat)) %>% ggplot(aes(x = Band.md, y = Fat)) + geom_smooth() + geom_point() + ggtitle("Norevik EUNI data")
 ggsave('Fat_date_Norevik.png')
 table(euni.df$Project)
 
+#All species data
+ewpw.m %>% ggplot(aes(x = Band.md, y = as.numeric(Fat))) + geom_smooth() + geom_point() + ggtitle("EWPW data")
+coni.m %>% ggplot(aes(x = Band.md, y = as.numeric(Fat))) + geom_smooth() + geom_point() + ggtitle("CONI data")
+fat_p1 <- euni.df %>% ggplot(aes(x = Band.md, y = as.numeric(Fat))) + geom_smooth() + geom_point() + labs( x = "Banding date", y = "Fat")
+fat_p2 <- euni.dfRes %>% ggplot(aes(x = Band.md, y = as.numeric(Fat))) + geom_smooth() + geom_point() + labs(x = "Banding date", y = "Fat")
+ggpubr::ggarrange(fat_p1, fat_p2,
+                  ncol = 2, nrow = 1,
+                  align='hv', labels = c("A","B"),
+                  legend = "none")
+ggsave("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Results/Figures/EUNI fattening.png", bg = "white")
+
+capri.df %>% group_by(Species) %>% summarize(mn_fat = mean(as.numeric(Fat), na.rm = T))
+
+#Res = residents
 nrow(euni.dfRes)
-euni.dfRes <- euni.df %>% filter(Band.md > as.POSIXct("2023-05-16") & Band.md < as.POSIXct("2023-08-06"))
+euni.dfRes <- euni.df %>% filter(Band.md > as.POSIXct("2023-05-16") & Band.md < as.POSIXct("2023-07-30")) #07-30 is final answer
 #Retest effect of band month
 summary(lm(Mass ~ Band.md + B.Lat + Age, data = euni.dfRes)) #poly() gives error for band.md
 summary(lm(Wing.Chord ~ Band.md + B.Lat + Age, data = euni.dfRes)) #Would need to remove Age == "Unk"
@@ -286,11 +426,15 @@ ggplot(data = euni.dfRes, aes(x = Band.md, y = Wing.Chord)) + geom_point(alpha =
 ggplot(data = euni.dfRes, aes(x = Band.md, y = Mass)) + geom_point(alpha = .3) + geom_smooth() 
 
 #Some way of seeing sequential variation explained? 
-anova(lm(Wing.Chord ~  Band.md + B.Lat + Age , data = euniRes))
+summary(lm(Mass ~ tsss + B.Lat + Band.md, data = euni.df))
+summary(lm(Mass ~ tsss + B.Lat + Band.md, data = ewpwRes))
+summary(lm(Mass ~ tsss + B.Lat + Band.md, data = coni.m))
+af <- anova(lm(Mass ~ tsss + B.Lat + Band.md, data = euni.df))
+af %>% mutate(pctExp = `Sum Sq` / sum(`Sum Sq`) * 100)
 
 
 #Remove potential migrants, leaving just residents (res). 5974 individuals to 5593. If you adjust the spring date to some time in May need to ensure that no individuals w/ winter data are excluded.
-euniRes <- capri.df %>% filter(Species == "EUNI" & Band.md > as.POSIXct("2023-05-16") & Band.md < as.POSIXct("2023-08-06") & is.na(W.Lat))
+euniRes <- capri.df %>% filter(Species == "EUNI" & Band.md > as.POSIXct("2023-05-16") & Band.md < as.POSIXct("2023-08-01") & is.na(W.Lat))
 euniFAC <- capri.df %>% filter(Species == "EUNI" & !is.na(W.Lat))
 coni.ewpw <- capri.df %>% filter(Species != "EUNI" & Band.md > as.POSIXct("2023-04-30")) 
 capri.df <- rbind(euniRes, euniFAC, coni.ewpw)
@@ -330,18 +474,7 @@ capri.df %>% filter(Band.Number %in% multSex) %>% select(Band.Number, Sex, Proje
 capri.df %>% filter(Band.Number == "LA42163")
 
 
-#This is showing no overlap outside of Stewart and IAN. 
-capri.df %>% filter(Band.Number %in% multProj$Band.Number) %>% select(Project)
-capri.df %>% filter(Country == "Finland") %>% with(table(Year, Project))
-JHeunj <- JHeunj %>% replace_with_na_all(condition = ~.x %in% c("na"))
-jhband <- paste0("A", JHeunj$Band.Number)
-table(jhband %in% Various[Various$Country == "Finland",]$Band.Number)
-TF <- jhband %in% Various[Various$Country == "Finland",]$Band.Number
-jhband[TF]
-capri.df %>% mutate(Band.Number = ifelse(Project == "FMNH/Ceur", paste0("A", Band.Number), Band.Number)) %>% filter(Band.Number == "A770945" & Year == 2018) %>% select (Project, Year, Band.Number, B.Lat)
-
-
-#Breeding cords are 3+ digits, winter offenders are Naskaswe & our own data! 
+#Breeding cords are 3+ digits, winter offenders are Naskaswe & our own data! ALREADY ADDRESSED. COULD BE GOOD TO HAVE A SECTION OF THINGS YOU CHECKED BUT ARE OK, AND NOW DON'T NEED TO BE CHECKED EVERY TIME. 
 decimals <- sapply(str_split(capri.df$W.Lat, "[.]"), function(x){x[2]})
 data.frame(capri.df$Project, capri.df$Band.Number, decimals) %>% filter(!is.na(decimals)) %>% mutate(ncharW = nchar(decimals)) %>% arrange(ncharW)
 
@@ -354,31 +487,31 @@ capriMut <- capri.df %>% group_by(Band.Age) %>%
 capriMut <- capriMut %>% filter(!is.na(Banding.Time)) %>%
                          mutate(Mass.combBT = mean(Mass, na.rm = T)) %>% 
                          filter(!is.na(Mass)) %>% 
-                         mutate(BT.comb = mean(Banding.Time, na.rm = T)) %>% 
+                         mutate(tsss.comb = mean(tsss, na.rm = T)) %>% 
                          rbind(capriMut %>% filter(is.na(Mass) | is.na(Banding.Time))) %>% 
-  tidyr::fill(BT.comb, Mass.combBT, .direction = "downup") #Capri Mutated. Tail.comb = mean(Tail.Length, na.rm = TRUE)
+  tidyr::fill(tsss.comb, Mass.combBT, .direction = "downup") #Capri Mutated. Tail.comb = mean(Tail.Length, na.rm = TRUE)
 
-#Ensure this worked, rows should be the same, and see individual examples
-nrow(capri.df) # 5472 rows
+#CHECK::Ensure this worked, rows should be the same, and see individual examples
+nrow(capri.df)
 nrow(capriMut)
 
-
-
-#This individual of Alicia's shows it worked for mass 
-capriMut %>% filter(Band.Number == "135268737") %>% select(Band.Age, Banding.Time, Wing.Chord, Mass, Mass.comb, Wing.comb, BT.comb, Mass.combBT, W.Lat) %>% arrange(Mass.combBT)
-#This individual shows it worked for banding time
-capriMut %>% filter(Band.Number == "114281962") %>% select(Band.Age, Banding.Time, Mass, Mass.comb, BT.comb, Mass.combBT)
+#CHECK::This individual of Alicia's shows it worked for mass 
+capriMut %>% filter(Band.Number == "135268737") %>% select(Band.Age, Banding.Time, Wing.Chord, Mass, Mass.comb, Wing.comb, tsss.comb, Mass.combBT, W.Lat) %>% arrange(Mass.combBT)
+#This individual shows it worked for banding time (Not applicable for tsss.comb , DELETE?)
+capriMut %>% filter(Band.Number == "114281962") %>% select(Band.Age, Banding.Time, Mass, Mass.comb, tsss, tsss.comb, Mass.combBT)
 mean(chron(times = c("21:45:00" ,"20:10:00", "21:00:00", "20:20:00", "20:40:00")))
 #Another example
-capriMut %>% filter(Band.Number == "135268713") %>% select(Band.Age, Banding.Time, Mass, Mass.comb, BT.comb, Mass.combBT)
+capriMut %>% filter(Band.Number == "135268713") %>% select(Band.Age, Banding.Time, Mass, Mass.comb, tsss, tsss.comb, Mass.combBT)
+mean(c(57, 68, 61))
+mean(c(1.25, 2.68, .655))
 
 
 ##CapriBA has only a single row for each individual & Age combo
 capriBA <- data.frame(capriMut %>% group_by(Band.Age) %>% arrange(is.na(W.Lat), Year, .by_group = TRUE) %>% slice_head()) #BA = band age
-nrow(capriBA) #4455 rows
+nrow(capriBA) 
 
-#Ensure that functions picking the right row
-capriBA %>% filter(Band.Number == "135268737") %>% select(Band.Age, Banding.Time, Wing.Chord, Mass, Mass.comb, Wing.comb, BT.comb, Mass.combBT, W.Lat) 
+#CHECK::Ensure that function is picking the correct row, if the Adult row has W.Lat then we're good
+capriBA %>% filter(Band.Number == "135268737") %>% select(Band.Age, Banding.Time, Wing.Chord, Mass, Mass.comb, Wing.comb, tsss.comb, Mass.combBT, W.Lat) 
 
 #Visualize morphological difference between captures
 capriBA %>% select(Band.Number, Wing.Chord, Wing.comb) %>% group_by(Band.Number) %>% summarize(dif = Wing.Chord - Wing.comb) %>% arrange(dif)
@@ -410,7 +543,7 @@ df.dists <- merge(dists, df.Wlat.diff, by = "Band.Number") %>% arrange(Species, 
 df.dists %>% group_by(Species) %>% summarize(mdn = median(Dists), mn = mean(Dists), sd = sd(Dists))
 
 #Remove repeat individuals 
-levels(capri.fac$Age) #Notice order, this should NOT be a factor (or need to change code)
+levels(capriBA$Age) #Notice order, this should NOT be a factor in order for arrange to work correctly
 capriBA %>% count(Band.Number, Age) %>% count(Band.Number) %>% filter(n > 1) #max is 3 b/c could be Band#_Adult, Unk, and Young
 #Selecting adults when possible 
 capriBAnr <- capriBA %>% group_by(Band.Number) %>% arrange(is.na(W.Lat), Age) %>% slice_head() #nr = no repeats 
@@ -426,34 +559,65 @@ nrow(capri.fac) #Varied 186, 193, currently 189 unique birds..
 # Migration distance ------------------------------------------------------
 capri.fac <- transform(capri.fac, Str8line = distHaversine(cbind(capri.fac$B.Long, capri.fac$B.Lat), cbind(capri.fac$W.Long, capri.fac$W.Lat)) / 1000)
 TF <- capri.fac$Str8line < capri.fac$Mig.dist #13,14,19, 26
-capri.fac[ !TF ,c("Str8line", "Mig.dist","Project", "Band.Number")] %>% filter(Project == "NASKASWE") #Alicia used a different system to calculate migratory distance, so the numbers are slightly different. When she recalculated differences were <20km, so this is not very important on the scale of 4-5k km. 
+capri.fac[ !TF ,c("Str8line", "Mig.dist","Project", "Band.Number")] #Alicia used a different system to calculate migratory distance, so the numbers are slightly different. When she recalculated differences were <20km, so this is not very important on the scale of 4-5k km. 
 
 ##Migration distance correlations by species
 capri.fac %>% group_by(Species) %>% summarize(cor = cor(Str8line, Mig.dist, use = "complete.obs"))
-
 capri.fac %>% filter(Species == "EUNI") %>% 
   ggplot(aes(x = Str8line, y = Mig.dist)) +
   geom_smooth(method = "lm") +
   geom_point(aes(color = Project)) +
   geom_abline(slope= 1, linetype = "dashed", color="Red") + 
-  ggtitle("Problematic EUNI Mig dist calculations")
+  geom_text_repel(aes(label = TagID)) +
+  ggtitle("EUNI Mig dist calculations")
 #facet_wrap(~Species)
 
-#Migration distance models. Does the variation in temporal schedule influence migration distance? Yes! Therefore, it is better to use the straight-line distance  
+##Overall plot
+ggplot(data= capri.fac, aes(x = Str8line, y = Mig.dist)) + 
+  geom_smooth(aes(color = Species), method = "lm", se = F, fullrange = T) + 
+  geom_point(aes(color = Species), size = 3, position = "jitter", alpha=.3) + 
+  geom_abline(slope= 1, linetype = "dashed", color="Black") + #+ xlab("Departure Date") + ylab("Migration\nRate (km / day)") 
+  ggtitle("Mig dist calculations all species")
 
+
+capri.fac %>% filter(Mig.dist > 10000)
+
+#Migration distance models. Does the variation in temporal schedule influence migration distance? Depends how you look at it.. Overall (model w/ RE), temp.res.mig is significant by itself, but not once you include breeding latitude (which obviously influences migration distance).
+#General summary
 capri.fac %>% group_by(Species) %>% 
   summarize(mean = mean(Temp.res.mig,na.rm = T),
             sd = sd(Temp.res.mig,na.rm = T),
             max = max(Temp.res.mig,na.rm = T),
             min = min(Temp.res.mig,na.rm = T))
 summary(capri.fac$Temp.res.mig) #Ranges from 7 points a day to 1 point every 10 days
-summary(lmer(Mig.dist ~ Temp.res.mig + (1| Species), data = capri.fac))
 
-##Overall plot
-ggplot(data= capri.fac, aes(x = Str8line, y = Mig.dist)) + 
-  geom_smooth(aes(color = Species), method = "lm", se = F, fullrange = T) + 
-  geom_point(aes(color = Species), size = 3, position = "jitter", alpha=.3) + 
-  geom_abline(slope= 1, linetype = "dashed", color="Black") #+ xlab("Departure Date") + ylab("Migration\nRate (km / day)") 
+#Overall model
+summary(lmer(Mig.dist ~ Temp.res.mig + B.Lat + (1| Species), data = capri.fac))
+
+#By species, only EWPW is significantly impacted by temp sampling resolution.
+Spp <- capri.fac %>% filter(Species == "EWPW") 
+#This is complicated by the fact that breeding latitude is highly correlated with sampling resolution (-0.78)
+cor(Spp$B.Lat, Spp$Temp.res.mig, use = "complete.obs") 
+summary(lm(Mig.dist ~ Temp.res.mig + B.Lat, data = Spp))
+af <- anova(lm(Mig.dist ~ B.Lat + Temp.res.mig, data = Spp))
+af %>% mutate(pctExp = `Sum Sq` / sum(`Sum Sq`) * 100)
+
+#Plot temp sampling resolution impact on Mig dist by latitude for each spp
+ggplot(data= capri.fac, aes(x = Temp.res.mig, y = Mig.dist)) + 
+  geom_smooth(aes(color = as.factor(round(B.Lat,-1))), method = "lm", se = F, fullrange = F) + 
+  geom_point(aes(color = as.factor(round(B.Lat,-1))), size = 3, position = "jitter", alpha=.3) +
+  facet_wrap(~Species) +
+  xlab("Temporal sampling resolution") + ylab("Calculated Migration\nDistance") 
+  ggtitle("Mig dist calculations all species")
+
+#Overall, if you could really trust the EUNI mig distances you could just use the raw migration distances, as they're not impacted by temporal sampling resolution whatsoever. For CONI the relationship is not significant once breeding lat is controlled for, but for EWPW it is more challenging.. 
+  
+#Could consider resampling to the lowest temporal resolution (5 days) just for EWPW?
+Spp %>% group_by(Project) %>% 
+  summarize(mean = mean(Temp.res.mig,na.rm = T),
+            sd = sd(Temp.res.mig,na.rm = T),
+            max = max(Temp.res.mig,na.rm = T),
+            min = min(Temp.res.mig,na.rm = T))
 
 
 #Move down to plotting section? Or create a Misc section
@@ -466,136 +630,6 @@ summary(lmer(W.Long ~ B.Long + (1 | Species), data = capri.fac))
 
 #save.image(paste0(bs, "Desktop/Grad_School/R_Files/MS/BergAnalysis9.21.22.Rdata"))
 
-# MassCorrection ----------------------------------------------------------
-
-#1. Read in data----
-library(lutz)
-df <- capri.df %>% summarize(date = as.Date(Banding.Date), 
-                             lat = B.Lat, 
-                             lon = B.Long,
-                             DateTime = ymd_hms(paste(as.character(Banding.Date), Banding.Time)),
-                             Banding.Time = Banding.Time, 
-                             Project = Project,
-                             Band.Age = Band.Age,
-                             rowID = rowID) %>% 
-  mutate(tz=tz_lookup_coords(lat, lon, method="accurate"))
-
-tzs <- unique(df$tz)
-dftz <- list()
-for(i in 1:length(tzs)){
-  dftz[[i]] <- df %>% filter(tz == tzs[i])
-  #sunsets[[i]] <- getSunlightTimes(data = dftz)$sunset
-  dftz[[i]]$sunset <- getSunlightTimes(data=dftz[[i]], keep="sunset", tz=tzs[i])$sunset
-}
-?getSunlightTimes
-
-dftz <- lapply(dftz, function(x){ force_tz(x, "UTC")})
-sun_df <- bind_rows(dftz) #Confirmed this is good 4.26.23
-#CHECK
-sun_df %>% arrange(format(sun_df$sunset, format = "%H:%M:%S"))
-
-#Subtract a day from sunset time if bird was caught early in the AM 
-sun_df <- sun_df %>% mutate(sunset = as_datetime(ifelse(hms(Banding.Time) < hms("09:00:00"), ymd_hms(sunset) - lubridate::days(1), ymd_hms(sunset))))
-
-sun_df$tsss <- as.numeric(difftime(sun_df$DateTime, sun_df$sunset), units="hours") #tsss = time since sunset
-#CHECK
-sun_df %>% arrange(tsss) %>% filter(!is.na(tsss)) %>% select(sunset, DateTime, tsss, lat, lon)
-hist(sun_df$tsss)
-
-
-
-capriBA <- cbind(capriBA, df["tsss"])
-#capriBA <- capriBA %>% select(-"tsss")
-
-#Confirm this with combined tsss not Banding time 
-capriBA %>% filter(hms(Banding.Time) > hms("06:00:00") & hms(Banding.Time) < hms("18:00:00")) %>% select(Project, Band.Number, BT.comb, Banding.Time, tsss, W.Lat, Age) %>% arrange(Band.Number, Project, Banding.Time)
-capriBA$Banding.Time[c(3000:4000)]
-
-
-#I'll need to adjust this for new set of times I think? DELETE
-use <- capriBA %>% 
-  mutate(tsss = as.numeric(ifelse(tsss < -12, tsss+24, tsss))) %>% 
-  #arrange(tsss) %>% select(sunset, DateTime, tsss, lat, lon) #visualize
-  dplyr::filter(tsss > -5, 
-                tsss < 8)
-hist(df$tsss)
-hist(use$tsss)
-
-#3. Look at recaptures---- ###NEED to reorder this 
-recap <- use %>% 
-  group_by(Band.Number, Year) %>% 
-  summarize(captures = n()) %>% 
-  # ungroup() %>% 
-  dplyr::filter(captures > 1) %>% 
-  left_join(use)
-
-#4. Visualize----
-capriBA %>% 
-  mutate(Banding.Time = ifelse(Banding.Time < .5, Banding.Time + 1, Banding.Time)) %>% 
-  ggplot(aes(x = Banding.Time)) + geom_histogram(color = "black") #1.00 is midnight, every .25 should be a 6 hour period
-
-ggplot(use) +
-  geom_point(aes(x=tsss, y= Mass.combBT)) +
-  geom_smooth(aes(x=tsss, y= Mass.combBT)) + 
-  facet_wrap(~Species)
-
-#Just CONI
-  use %>% filter(Species == "CONI") %>% ggplot() +
-    geom_point(aes(x=tsss, y= Mass.combBT)) +
-    geom_smooth(aes(x=tsss, y= Mass.combBT)) 
-
-ggplot(use) +
-  geom_point(aes(x=tsss, y=Mass.combBT, colour=factor(round(B.Lat, -1)))) +
-  geom_smooth(aes(x=tsss, y=Mass.combBT, colour=factor(round(B.Lat, -1)))) +
-  facet_wrap(~Species)
-
-ggplot(use) +
-  geom_point(aes(x=jday, y=Mass.combBT, colour=factor(round(lat, -1)))) +
-  geom_smooth(aes(x=jday, y=Mass.combBT, colour=factor(round(lat, -1))), method="lm") +
-  facet_wrap(~Year)
-
-ggplot(recap) +
-  geom_point(aes(x=tsss, y=Mass.combBT, colour=Band.Number)) +
-  geom_line(aes(x=tsss, y=Mass.combBT, colour=Band.Number)) +
-  geom_smooth(aes(x=tsss, y=Mass.combBT)) #Overall line isn't really informative ?
-
-#5. Ok try with RE for individual----
-#What about testing with additional polynomials? 
-mod1 <- lmer(Mass.combBT ~ tsss + (1 | Site.name/Band.Number), data=use)
-mod2 <- lmer(Mass.combBT ~ poly(tsss, 2) + (1 | Site.name/Band.Number), data=use)
-AIC(mod1, mod2) #polynomial better model
-
-#6. Try predicting---- 
-#https://stats.stackexchange.com/questions/191648/using-re-form-in-predict-mermod-for-a-lmer-model
-newdat <- data.frame(expand.grid(tsss = seq(round(min(use$tsss), 1), round(max(use$tsss), 1), 0.1),
-                                 #                                 jday = seq(min(use$jday), max(use$jday), 1),
-                                 Population = unique(use$Population)))
-#Next plot helps show what this is doing here
-pred <- data.frame(pred.re = predict(mod2, newdat, re.form = ~(1|Population)), #Taking population into account
-                   pred = predict(mod2, newdat, re.form = ~0)) %>% #Overall effect (irrespective of RE)
-  cbind(newdat)
-
-
-ggplot() +
-  geom_point(aes(x=tsss, y=Mass.combBT, colour=Population), data=use) +
-  geom_line(aes(x=tsss, y=pred.re, colour=Population), data=pred) +
-  geom_line(aes(x=tsss, y=pred), data=pred, colour="black", lwd=2)
-
-#7. Predict to new data----
-out <- use %>% 
-  mutate(CorrectedMass.combBT = predict(mod2, use))
-
-#8. Visualize----
-ggplot(out) +
-  geom_point(aes(x=Mass.combBT, y=CorrectedMass.combBT, colour=tsss)) +
-  scale_colour_viridis_c()
-
-cor(out$Mass.combBT, out$CorrectedMass.combBT)
-write.csv(out, "/Users/ellyknight/Documents/UoA/Projects/Projects/Morphometrics/DataSheet_CONI_Breeding_Mass.combBTCorrection.csv", row.names = FALSE)
-
-
-
-
 
 
 # Nuisance variables / model structure  -----------------------------------
@@ -604,8 +638,11 @@ njanaSex <- njana[njana$Sex != "U",] #Just remove these 7 individuals
 nrow(njana)
 nrow(EnviCovs)
 #njana <- merge(subset(njdf, select = -c(B.dep, W.arr, Band.Age, Species)), EnviCovs, by = "ID") #NJ analysis
-njana.w <- njanaSex[!is.na(njanaSex$Wing.Chord),] #Wing
-njana.m <- njanaSex[!is.na(njanaSex$Mass),] #Mass
+njana.w <- njanaSex[!is.na(njanaSex$Wing.comb),] #Wing, we gain a few individuals that have a combined wing chord, but don't have wing chord measurement in all years
+nrow(njana.w)
+njana.m <- njanaSex[!is.na(njanaSex$Mass.combBT),] #Mass, notice we lost ~560 individuals when using Mass.combBT b/c some individuals don't have banding time (543 EUNI)
+nrow(njana.m)
+
 ewpw.w <- njana.w[njana.w$Species == "EWPW",] 
 ewpw.m <- njana.m[njana.m$Species == "EWPW",] 
 coni.w <- njana.w[njana.w$Species == "CONI",] 
@@ -619,7 +656,6 @@ euniAgeM <- euni.m[euni.m$Age != "Unk",]
 
 #Data exploration. Consider transforming response var or using glm? 
 #EWPW
-library(ggpubr)
 hist(ewpw.w$Wing.Chord)
 hist(ewpw.m$Mass) 
 #A significant p value here implies that the variable does differ significantly from normal
@@ -701,51 +737,90 @@ ee_check_python_packages()
 
 ee_Initialize(user = "aaron.skinner@fulbrightmail.org", drive = TRUE, gcs = TRUE)
 
-
-
 # Link envi covs w/ individuals -------------------------------------------
 
 #Elly pulled the individuals w/ winter locs from the bigger file I sent her (near 1000 rows)
 #load("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Correlations/EC_workspace.Rdata")
 #This njdf file needs to be the complete data frame w/ all variables (e.g. capri.fac) and including the ID column. 
 
+#DELETE::Delete this and instead use capri.df 
 njdf <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/capri.fac.id.csv") #nightjar df
 njdf <- capri.fac
 njdf$ID <- 1:186
 
 
-elev <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/DEM.csv")
-elev <- elev %>% dplyr::select(ID, season, elevation) %>% group_by(ID) %>% pivot_wider(names_from = season, names_glue = "{season}Elev", values_from = elevation) #Notice names glue so season starts the name
+elev <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/DEM-Buffer.csv")
+elev <- elev %>% dplyr::select(rowID, season, mean) %>% group_by(rowID) %>% tidyr::pivot_wider(names_from = season, names_glue = "{season}Elev", values_from = mean) #Notice names glue so season starts the name
+
 
 #WorldClim
-wc <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Wordclim.csv")
-head(wc)
+wc <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Wordclim-Buffer.csv")
 #MDR = mean diurnal range, BIO2. Many of these are similar to the 19 worldclim vars (good comparison to make in manuscript, as people are familiar with these vars). Notice particularly that BrTcv is not equivalent to using the cv function (i.e compCV = cv(tavg, na.rm = T) produces slightly different results). 
 #Should MDR go into seasonality or temp regulation... Elly & I think TR, b/c seasonality is ACROSS the entirety of the season, MDR is within each month.
-br.wc <- wc %>% group_by(ID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= 9) %>% summarize(BrPrec = mean(prec), BrCVprec = cv(prec), BrTavg = mean(tavg), BrTcv = ((sd(tavg/10))/(mean(tavg/10) + 273.15))*100, BrTmax = mean(tmax), BrTMAX = max(tmax), BrTmin = mean(tmin), BrTMIN = min(tmin), BrMDR = sum(tmax - tmin) / 5)
-wi.wc <- wc %>% group_by(ID) %>% filter(season == "Winter", covmonth >= 10 | covmonth <= 4) %>% summarize(WiPrec = mean(prec, na.rm = T), WiCVprec = cv(prec, na.rm = T), WiTavg = mean(tavg, na.rm = T), WiTcv = ((sd(tavg/10, na.rm = T))/(mean(tavg/10, na.rm = T) + 273.15))*100, WiTmax = mean(tmax), WiTMAX = max(tmax), WiTmin = mean(tmin), WiTMIN = min(tmin), WiMDR = sum(tmax - tmin) / 5)
-wc[wc$season == "Winter",]
-
+br.wc <- wc %>% group_by(rowID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= 9) %>% summarize(BrPrec = mean(prec), BrCVprec = raster::cv(prec), BrTavg = mean(tavg), BrTcv = ((sd(tavg/10))/(mean(tavg/10) + 273.15))*100, BrTmax = mean(tmax), BrTMAX = max(tmax), BrTmin = mean(tmin), BrTMIN = min(tmin), BrMDR = sum(tmax - tmin) / 5)
+wi.wc <- wc %>% group_by(rowID) %>% filter(season == "Winter", covmonth >= 10 | covmonth <= 4) %>% summarize(WiPrec = mean(prec, na.rm = T), WiCVprec = raster::cv(prec, na.rm = T), WiTavg = mean(tavg, na.rm = T), WiTcv = ((sd(tavg/10, na.rm = T))/(mean(tavg/10, na.rm = T) + 273.15))*100, WiTmax = mean(tmax), WiTMAX = max(tmax), WiTmin = mean(tmin), WiTMIN = min(tmin), WiMDR = sum(tmax - tmin) / 5)
 
 #EVI
-evi <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/EVI.csv")
-br.evi <- evi %>% group_by(ID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= 9) %>% summarize(BrEVI = mean(EVI, na.rm = T), BrCVevi = cv(EVI, na.rm = T))
-wi.evi <- evi %>% group_by(ID) %>% filter(season == "Winter", covmonth >= 10 | covmonth <= 4) %>% summarize(WiEVI = mean(EVI, na.rm = T), WiCVevi = cv(EVI, na.rm = T))
-EnviCovs[EnviCovs$ID == 92,]
-njdf[njdf$TagID == 2125,]
-wc[wc$ID == 92,]
-njana[njana$TagID == 2125,]
+evi <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/EVI-Buffer.csv")
+br.evi <- evi %>% group_by(rowID) %>% filter(season == "Breed", covmonth >= 6 & covmonth <= 7) %>% summarize(BrEVI = mean(EVI, na.rm = T), BrCVevi = raster::cv(EVI, na.rm = T))
+wi.evi <- evi %>% group_by(rowID) %>% filter(season == "Winter", covmonth >= 10 | covmonth <= 4) %>% summarize(WiEVI = mean(EVI, na.rm = T), WiCVevi = raster::cv(EVI, na.rm = T))
 
-#Terraclim
-tc <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Terraclim.csv")
-br.tc <- tc %>% group_by(ID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= 9) %>% summarize(BrAet = mean(aet, na.rm = T), BrVap = mean(vap, na.rm = T), BrSrad = mean(srad, na.rm = T))
-wi.tc <- tc %>% group_by(ID) %>% filter(season == "Winter", covmonth >= 10 | covmonth <= 4) %>% summarize(WiAet = mean(aet, na.rm = T), WiVap = mean(vap, na.rm = T), WiSrad = mean(srad, na.rm = T))
+##SKIP
+#Terraclim -- Going to skip on Rd2 b/c this file is nearly a GB in size, and we're not planning on using at present. Variables contained are Aet, Vap, and Srad
+#tc <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Terraclim-buffer.csv")
+head(tc)
+br.tc <- tc %>% group_by(rowID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= 9) %>% summarize(BrAet = mean(aet, na.rm = T), BrVap = mean(vap, na.rm = T), BrSrad = mean(srad, na.rm = T))
+wi.tc <- tc %>% group_by(rowID) %>% filter(season == "Winter", covmonth >= 10 | covmonth <= 4) %>% summarize(WiAet = mean(aet, na.rm = T), WiVap = mean(vap, na.rm = T), WiSrad = mean(srad, na.rm = T))
+##
 
 
-dfs <- list(br.wc,  wi.wc, elev, br.evi, wi.evi, br.tc, wi.tc)
-EnviCovs <- dfs %>% purrr::reduce(full_join, by = "ID")
-EnviCovs <- merge(EnviCovs, njdf[,c("ID", "Species")], by = "ID")
-nrow(EnviCovs) #Should be 186
+###B/c rowID got messed up (likely due to changing Marja's banding times), we have to overwrite some rowIDs so we get a good match 
+CheckDFelly <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/CapDfElly.csv")
+capri.df <- capri.df %>% mutate(rowID = row_number())
+identical(capri.df[,c("rowID", "Band.Number")] , CheckDFelly[,c("rowID", "Band.Number")]) #Fucked up 
+
+capri.df$Banding.Date <- as.character(capri.df$Banding.Date)
+#Let's check for repeats in these key columns that we'll use to match
+TF <- capri.df[,c("Band.Number", "Banding.Date", "W.Lat")] == CheckDFelly[,c( "Band.Number", "Banding.Date", "W.Lat")]
+#NOT RELEVANT AT PRESENT::If you were to delete rows where rowID is same but band numbers differ, then things could be problematic when Band.Numbers are the same and something else differs. Biggest key is that this is not issue w/ W.Lat, but the Banding.Date is also not ideal (but it's OK b/c just 5 individuals). Probably best to just delete these 189 individuals
+data.frame(TF) %>% filter(Band.Number != Banding.Date | Band.Number != W.Lat | W.Lat != Banding.Date)
+TF <- capri.df[,c("Band.Number")] == CheckDFelly[,c( "Band.Number")]
+table(TF)
+
+#Merge on this and you'll see this won't be super straightforward b/c there are 199 instead of 189
+test <- merge(capri.df[!TF,], CheckDFelly[,c("Band.Number",  "Banding.Date", "W.Lat", "rowID")], by = c("Band.Number",  "Banding.Date", "W.Lat"), all.x = T) %>% arrange(Band.Number)
+test <- test %>% filter_all(any_vars(!is.na(.)))
+nrow(test) #199 individuals, meaning there are problems with duplicates
+test %>% filter(!duplicated(Band.Number) & !is.na(W.Lat)) 
+
+##Loop to fix the problem
+rowIDs <- vector()
+for(i in 1:nrow(capri.df)){
+  if(!is.na(CheckDFelly$Band.Number[i]) & !is.na(capri.df$Band.Number[i]) & capri.df$Band.Number[i] != CheckDFelly$Band.Number[i]){
+    print(i)
+    capri.df$rowID[i] <- CheckDFelly %>% filter(Band.Number == capri.df$Band.Number[i] & Banding.Date == capri.df$Banding.Date[i] & is.na(W.Lat) == is.na(capri.df$W.Lat[i])) %>% pull(rowID)
+  }
+}
+
+##CHECK:: Can confirm loop worked by checking that these are the same individuals
+i <- 5629
+CheckDFelly[5561,]
+capri.df[i,]
+
+##FINAL CHECK, IMPORTANT:: Band numbers should be identical at this point upon merging
+test <- merge(capri.df[,c("Band.Number", "rowID")], CheckDFelly[, c("Band.Number", "rowID")], by = "rowID") 
+table(test$Band.Number.x == test$Band.Number.y)
+
+#REMEMBER::Finally, b/c there were some individuals caught on same date and w/out wintering information, they were assigned the same rowID.
+length(unique(capri.df$rowID)) #There are some individuals that have repeated rowID, but this does not matter for assingment of environmental covariates
+capri.df %>% filter(duplicated(rowID))
+##End of rowID fix 
+
+dfs <- list(br.wc,  wi.wc, elev, br.evi, wi.evi) #br.tc, wi.tc
+EnviCovs <- dfs %>% purrr::reduce(full_join, by = "rowID")
+length(unique(EnviCovs$rowID))
+EnviCovs <- merge(EnviCovs, capri.df[,c("rowID", "Band.Number", "Banding.Date", "Species")], by = "rowID")
+nrow(EnviCovs) #Should be 5927
 
 
 #Correlations EWPW

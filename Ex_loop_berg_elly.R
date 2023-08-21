@@ -5,47 +5,51 @@
 
 # NEXT STEPS --------------------------------------------------------------
 
-#Restart R and rerun everything. Will want to reorganize some things 
 ##BT.comb -> Filter out individuals with improbable banding times, calculate tsss by correct timezone, then combine same individuals tsss (instead of by bandtime). COMPLETE :)
+#Determine nuisance vars to test, establish rationale for month.day and year
 
-#Visualize tsss using plots Elly made 
-##Rerun nuisance variable selection using the COMBINED tsss + comb.mass (should likely be using capriBAnr?)
-##WAIT FOR ELLY'S ENVI COVS DATA FRAME THEN CHECK FOR PRODUCTIVITY HYPOTHESIS, THEN RERUN ANALYSIS
+#Review emails about framing of paper, read Alicia's version of paper (can work in doc and add "PREPRINT" to things that will just happen in the preprint)
+##Had previously had error in row_number, take another look at that and then link up with Elly's Envi variables
+#Adjust code to include the nuisance variables we're controlling for including poly(tsss, 2)
+#Adjust code to be a single round of model selection instead of 2 rounds 
 #Tidy code up at the end 
 #Save to GitHub before making more changes (and for solving issue w/ envi covs link), plus every so often in addition 
+#Restart R and rerun everything. Will want to reorganize some things 
 
 # Stomach -----------------------------------------------------------------
 
 stomach <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Analysis/Bergmann/EvensLathouwers_data_sheet_corrected_stomach.csv")
+nrow(stomach)
 
 stomach$Banding.Time <- sapply(str_split(parse_date_time(stomach[,c("Banding.Time")], c("HMS"), truncated = 3), " "), function(x){x[2]})
 stomach$Banding.Time <- chron(times = stomach$Banding.Time)
 stomach <- stomach %>% mutate(Banding.Time = ifelse(Banding.Time < .5, Banding.Time + 1, Banding.Time))
 
-stomach %>% 
-  ggplot(aes(x = Banding.Time, y = Stomach)) + geom_point() + geom_smooth()
+#This is a pretty cool plot to include in manuscript as a supplementary figure, although would want to remember what the stomach score represents, and would want to convert to tsss 
+Sys.setenv(TZ='GMT')
+stomach %>% ggplot(aes(x = Banding.Time, y = Stomach)) + geom_jitter(width = .05, alpha = .3) + geom_smooth() + scale_x_chron(format="%H:%M")
 
 summary(lm(Stomach ~ Banding.Time, data = stomach))
 with(stomach, cor.test(Banding.Time, Stomach))
 
-
 #Prep loops
-loop <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.Chord", "Mass"), Season = c("Breed", "Winter"), Hypothesis = c("Geo", "TR", "Prod", "Seas"))
-loop2 <- expand.grid(Species = c("CONI", "EWPW", "EUNI"),DV = c("Wing.Chord", "Mass"), Season = "NA", Hypothesis = "Mig.Dist")
+loop <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.comb", "Mass.combBT"), Season = c("Breed", "Winter"), Hypothesis = c("Geo", "TR", "Prod", "Seas"))
+loop2 <- expand.grid(Species = c("CONI", "EWPW", "EUNI"),DV = c("Wing.comb", "Mass.combBT"), Season = "NA", Hypothesis = "Mig.Dist")
 loop <- rbind(loop,loop2)
 loop <- arrange(loop, Species, DV, Hypothesis)
-loopSppDV <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.Chord", "Mass")) #Model Selection Round 2
+loopSppDV <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.comb", "Mass.combBT")) #Model Selection Round 2
 loopSppDV <- arrange(loopSppDV, Species, DV)
  
 njdf.list <- list(ewpw.w, ewpw.m, coni.w, coni.m, euni.w, euni.m)
-names(njdf.list) <- c("EWPW.Wing.Chord", "EWPW.Mass", "CONI.Wing.Chord", "CONI.Mass", "EUNI.Wing.Chord", "EUNI.Mass")
+names(njdf.list) <- c("EWPW.Wing.comb", "EWPW.Mass.combBT", "CONI.Wing.comb", "CONI.Mass.combBT", "EUNI.Wing.comb", "EUNI.Mass.combBT")
 njdf.list.ns <- njdf.list
-#Can also try select_if() but I couldn't quite figure it out
-capri.df %>% select_if(function(x){is.numeric(x)}) 
 
-
+#Scale numeric variables using select_if()
+njdf.list.num <- njdf.list.s <- list()
 for(i in 1:length(njdf.list)){
-  njdf.list[[i]][,c(16, 18, 20:61)] <- scale(njdf.list[[i]][,c(16, 18, 20:61)])
+  njdf.list.num[[i]] <- njdf.list[[i]] %>% select_if(function(x){is.numeric(x)}) 
+  njdf.list.s[[i]] <- scale(subset(njdf.list.num[[i]], select = -c(Band.Number, rowID, Year)))
+  njdf.list[[i]] <- cbind(njdf.list[[i]][,c("Band.Number", "rowID", "Year", "Age", "Sex")] , njdf.list.s[[i]])
 }
 
 table(is.na(df$Wing.Chord))
@@ -62,52 +66,39 @@ for(i in 1:nrow(loopSppDV)){
   print(paste("i =", i))
   if(loopSppDV[i,1] == "EUNI" | loopSppDV[i,1] == "EWPW"){
   df <- njdf.list.age[paste0(loopSppDV[i,1], ".", loopSppDV[i,2])][[1]]
-  df <- df %>% filter(!is.na(Banding.Date) & !is.na(tsss))
-  globNuis[[i]] <- lm(as.formula(paste(loopSppDV[i,2],"~", c("B.Lat + poly(scale(Year), 3) + Age + Sex + Band.md"))), na.action = "na.fail", data = df) #Top mod for EUNI Mass includes poly(2), poly(3),
+  globNuis[[i]] <- lm(as.formula(paste(loopSppDV[i,2],"~", c("B.Lat + Age + Sex"))), na.action = "na.fail", data = df) #Top mod for EUNI Mass includes poly(2), poly(3),
   }
-  if(loopSppDV[i,1] == "CONI"){#Overwrite Nuis global; include Unk Age birds for CONI (njdf.list)
+  if(loopSppDV[i,1] == "CONI"){#Overwrite Nuis global; include Unk age birds for CONI (via njdf.list)
     df <- njdf.list[paste0(loopSppDV[i,1], ".", loopSppDV[i,2])][[1]]
-    df <- df %>% filter(!is.na(Banding.Date) & !is.na(tsss))
-    globNuis[[i]] <- lm(as.formula(paste(loopSppDV[i,2],"~", c("B.Lat + poly(scale(Year), 3) + Sex + Band.md"))), na.action = "na.fail", data = df) #Remove age from model
+    globNuis[[i]] <- lm(as.formula(paste(loopSppDV[i,2],"~", c("B.Lat + Sex"))), na.action = "na.fail", data = df) #Remove age from model
   }
-  if(loopSppDV[i,2] == "Mass"){
-    globNuis[[i]] <- update(globNuis[[i]], ~. + tsss) #Add tsss to model
-  }
-  if(loopSppDV[i,1] != "EUNI"){
-    globNuis[[i]] <- update(globNuis[[i]], ~. - poly(scale(Year), 3))
-    globNuis[[i]] <- update(globNuis[[i]], ~. + scale(Year))
+  if(loopSppDV[i,2] == "Mass.combBT"){
+    df <- df %>% filter(!is.na(tsss.comb))
+    globNuis[[i]] <- update(globNuis[[i]], ~. + poly(tsss.comb,2)) #Add tsss.comb to model
   }
   drgNuis[[i]] <- dredge(globNuis[[i]], m.lim = c(0,6))
   candNuis[[i]] <- get.models(object = drgNuis[[i]], subset = T)
   NamesNuis <- sapply(candNuis[[i]], function(x){paste(x$call)}[2]) #Why +1?
   aictabNuis[[i]] <- aictab(cand.set = candNuis[[i]], modnames = NamesNuis, sort = TRUE)
-  TM[[i]] <- lm(as.formula(aictabNuis[[i]]$Modnames[1]), na.action = "na.fail", data = df)
+  TM[[i]] <- lm(as.formula(aictabNuis[[i]]$Modnames[1]), na.action = "na.fail", data = df) #Top model
   sumTM[[i]] <- summary(TM[[i]])  #Summary of the top model
   #resid.plots[[i]] <- plot(TM[[i]], which = 1, main = paste(loopSppDV[i,1], loopSppDV[i,2]))
+  ##Residual plots by Age & Sex, they all look resonable
+  boxplot(resid(TM[[i]]) ~ Sex, data = df, main = paste(loopSppDV[i,1], "Heterogeneity Sex"), ylab = "Residuals")
+  if(loopSppDV[i,1] == "EWPW" | loopSppDV[i,1] == "EUNI"){
+    boxplot(resid(TM[[i]]) ~ Age, data = df, main = paste(loopSppDV[i,1], "Heterogeneity Age"), ylab = "Residuals")
+  }
 }
 
-#3rd degree for poly() is best in both Mass and Wing Chord for EUNI
-m1 <- lm(Mass ~ Age + B.Lat + Band.md + poly(scale(Year), 3) + Sex + tsss + 1, euni.m)
-m2 <- lm(Mass ~ Age + B.Lat + Band.md + poly(scale(Year), 2) + Sex + tsss + 1, euni.m)
-m3 <- lm(Mass ~ Age + B.Lat + Band.md + poly(scale(Year), 1) + Sex + tsss + 1, euni.m)
-
-AIC(m1,m2,m3)
-
-w1 <- lm(Wing.Chord ~ Age + B.Lat + Band.md + poly(scale(Year), 3) + Sex + 1, euni.w)
-w2 <- lm(Wing.Chord ~ Age + B.Lat + Band.md + poly(scale(Year), 2) + Sex + 1, euni.w)
-w3 <- lm(Wing.Chord ~ Age + B.Lat + Band.md + poly(scale(Year), 1) + Sex + 1, euni.w)
-AIC(w1,w2,w3)
-
 names(aictabNuis) <- paste0(loopSppDV[,1], ".", loopSppDV[,2])
+#Notice all species are the same, Age (not included in CONI models) + Sex for wing chord, and Age + Sex + tsss for mass
 lapply(aictabNuis, slice_head, n = 5)
 names(sumTM) <- paste0(loopSppDV[,1], ".", loopSppDV[,2])
 sumTM
 
+
 NuisVarsModSelect <- bind_rows(lapply(aictabNuis, slice_head, n = 5))
 write.csv(NuisVarsModSelect, "NuisVarsModSelect.csv")
-
-
-
 
 #Age & sex in majority of top models w/ full df, but extremely unbalanced sample sizes for Age & Sex in FAC birds. Had looked at spread of residuals in EWPW age but couldn't even do this for majority of these nuisance variables.
 capri.fac %>% group_by(Species) %>% count(Age)
@@ -115,10 +106,6 @@ capri.fac %>% group_by(Species) %>% count(Sex)
 capri.fac %>% group_by(Species) %>% count(Year) #EUNI 2010 - 2021
 
 euniFAC <- capri.fac[capri.fac$Species == "EUNI",]
-summary(lm(Mass ~ poly(Year, 3), data = euniFAC)) #None of the poly(#s) significant for EUNI
-
-
-##NEED TO GO BACK IN AND ADD IN BIRDS OF UNKNOWN AGE??
 
 HypVars <- vector("list", length = 5)
 HypVars[[1]] <- c("Lat", "Long", "Elev") #Geography
