@@ -1,23 +1,124 @@
 #load("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/R_Files/MS/BergJIC.Rdata")
 #load("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/R_Files/MS/BergAnalysis9.25.22.Rdata")
 
+?head
 
-fddf
+# NEXT STEPS --------------------------------------------------------------
 
- fdfd 
- 
+#Restart R and rerun everything. Will want to reorganize some things 
+##BT.comb -> Filter out individuals with improbable banding times, calculate tsss by correct timezone, then combine same individuals tsss (instead of by bandtime). COMPLETE :)
+
+#Visualize tsss using plots Elly made 
+##Rerun nuisance variable selection using the COMBINED tsss + comb.mass (should likely be using capriBAnr?)
+##WAIT FOR ELLY'S ENVI COVS DATA FRAME THEN CHECK FOR PRODUCTIVITY HYPOTHESIS, THEN RERUN ANALYSIS
+#Tidy code up at the end 
+#Save to GitHub before making more changes (and for solving issue w/ envi covs link), plus every so often in addition 
+
+# Stomach -----------------------------------------------------------------
+
+stomach <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Analysis/Bergmann/EvensLathouwers_data_sheet_corrected_stomach.csv")
+
+stomach$Banding.Time <- sapply(str_split(parse_date_time(stomach[,c("Banding.Time")], c("HMS"), truncated = 3), " "), function(x){x[2]})
+stomach$Banding.Time <- chron(times = stomach$Banding.Time)
+stomach <- stomach %>% mutate(Banding.Time = ifelse(Banding.Time < .5, Banding.Time + 1, Banding.Time))
+
+stomach %>% 
+  ggplot(aes(x = Banding.Time, y = Stomach)) + geom_point() + geom_smooth()
+
+summary(lm(Stomach ~ Banding.Time, data = stomach))
+with(stomach, cor.test(Banding.Time, Stomach))
+
+
+#Prep loops
 loop <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.Chord", "Mass"), Season = c("Breed", "Winter"), Hypothesis = c("Geo", "TR", "Prod", "Seas"))
 loop2 <- expand.grid(Species = c("CONI", "EWPW", "EUNI"),DV = c("Wing.Chord", "Mass"), Season = "NA", Hypothesis = "Mig.Dist")
 loop <- rbind(loop,loop2)
 loop <- arrange(loop, Species, DV, Hypothesis)
+loopSppDV <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.Chord", "Mass")) #Model Selection Round 2
+loopSppDV <- arrange(loopSppDV, Species, DV)
  
 njdf.list <- list(ewpw.w, ewpw.m, coni.w, coni.m, euni.w, euni.m)
 names(njdf.list) <- c("EWPW.Wing.Chord", "EWPW.Mass", "CONI.Wing.Chord", "CONI.Mass", "EUNI.Wing.Chord", "EUNI.Mass")
 njdf.list.ns <- njdf.list
 #Can also try select_if() but I couldn't quite figure it out
+capri.df %>% select_if(function(x){is.numeric(x)}) 
+
+
 for(i in 1:length(njdf.list)){
   njdf.list[[i]][,c(16, 18, 20:61)] <- scale(njdf.list[[i]][,c(16, 18, 20:61)])
 }
+
+table(is.na(df$Wing.Chord))
+
+
+# Nuisance variables by spp -----------------------------------------------
+#I think most robust way to test this for EUNI would be to add poly(euni.w$Year, 3) as new columns onto data frame then somehow ensure that if 3 is included, so are 2 and 1, and so on. Alternatively, add poly(2) and poly(1) but ensure that poly(1,2,or3) are never in the same model. Don't think it really matters though since I did post-hoc check and poly(3) is best model for EUNI.
+
+njdf.list.age <- lapply(njdf.list, function(x){x[x$Age != "Unk",]})
+lapply(njdf.list.age, nrow) #CONI only has 50 individuals that are aged. Age is not in top model for Wing or Mass (w/ the 50 bird df), so let's leave in all individuals and remove Age from model
+lapply(njdf.list, nrow) 
+globNuis <- drgNuis <- candNuis <- aictabNuis <- sumTM <- TM <- resid.plots <- list()
+for(i in 1:nrow(loopSppDV)){ 
+  print(paste("i =", i))
+  if(loopSppDV[i,1] == "EUNI" | loopSppDV[i,1] == "EWPW"){
+  df <- njdf.list.age[paste0(loopSppDV[i,1], ".", loopSppDV[i,2])][[1]]
+  df <- df %>% filter(!is.na(Banding.Date) & !is.na(tsss))
+  globNuis[[i]] <- lm(as.formula(paste(loopSppDV[i,2],"~", c("B.Lat + poly(scale(Year), 3) + Age + Sex + Band.md"))), na.action = "na.fail", data = df) #Top mod for EUNI Mass includes poly(2), poly(3),
+  }
+  if(loopSppDV[i,1] == "CONI"){#Overwrite Nuis global; include Unk Age birds for CONI (njdf.list)
+    df <- njdf.list[paste0(loopSppDV[i,1], ".", loopSppDV[i,2])][[1]]
+    df <- df %>% filter(!is.na(Banding.Date) & !is.na(tsss))
+    globNuis[[i]] <- lm(as.formula(paste(loopSppDV[i,2],"~", c("B.Lat + poly(scale(Year), 3) + Sex + Band.md"))), na.action = "na.fail", data = df) #Remove age from model
+  }
+  if(loopSppDV[i,2] == "Mass"){
+    globNuis[[i]] <- update(globNuis[[i]], ~. + tsss) #Add tsss to model
+  }
+  if(loopSppDV[i,1] != "EUNI"){
+    globNuis[[i]] <- update(globNuis[[i]], ~. - poly(scale(Year), 3))
+    globNuis[[i]] <- update(globNuis[[i]], ~. + scale(Year))
+  }
+  drgNuis[[i]] <- dredge(globNuis[[i]], m.lim = c(0,6))
+  candNuis[[i]] <- get.models(object = drgNuis[[i]], subset = T)
+  NamesNuis <- sapply(candNuis[[i]], function(x){paste(x$call)}[2]) #Why +1?
+  aictabNuis[[i]] <- aictab(cand.set = candNuis[[i]], modnames = NamesNuis, sort = TRUE)
+  TM[[i]] <- lm(as.formula(aictabNuis[[i]]$Modnames[1]), na.action = "na.fail", data = df)
+  sumTM[[i]] <- summary(TM[[i]])  #Summary of the top model
+  #resid.plots[[i]] <- plot(TM[[i]], which = 1, main = paste(loopSppDV[i,1], loopSppDV[i,2]))
+}
+
+#3rd degree for poly() is best in both Mass and Wing Chord for EUNI
+m1 <- lm(Mass ~ Age + B.Lat + Band.md + poly(scale(Year), 3) + Sex + tsss + 1, euni.m)
+m2 <- lm(Mass ~ Age + B.Lat + Band.md + poly(scale(Year), 2) + Sex + tsss + 1, euni.m)
+m3 <- lm(Mass ~ Age + B.Lat + Band.md + poly(scale(Year), 1) + Sex + tsss + 1, euni.m)
+
+AIC(m1,m2,m3)
+
+w1 <- lm(Wing.Chord ~ Age + B.Lat + Band.md + poly(scale(Year), 3) + Sex + 1, euni.w)
+w2 <- lm(Wing.Chord ~ Age + B.Lat + Band.md + poly(scale(Year), 2) + Sex + 1, euni.w)
+w3 <- lm(Wing.Chord ~ Age + B.Lat + Band.md + poly(scale(Year), 1) + Sex + 1, euni.w)
+AIC(w1,w2,w3)
+
+names(aictabNuis) <- paste0(loopSppDV[,1], ".", loopSppDV[,2])
+lapply(aictabNuis, slice_head, n = 5)
+names(sumTM) <- paste0(loopSppDV[,1], ".", loopSppDV[,2])
+sumTM
+
+NuisVarsModSelect <- bind_rows(lapply(aictabNuis, slice_head, n = 5))
+write.csv(NuisVarsModSelect, "NuisVarsModSelect.csv")
+
+
+
+
+#Age & sex in majority of top models w/ full df, but extremely unbalanced sample sizes for Age & Sex in FAC birds. Had looked at spread of residuals in EWPW age but couldn't even do this for majority of these nuisance variables.
+capri.fac %>% group_by(Species) %>% count(Age)
+capri.fac %>% group_by(Species) %>% count(Sex)
+capri.fac %>% group_by(Species) %>% count(Year) #EUNI 2010 - 2021
+
+euniFAC <- capri.fac[capri.fac$Species == "EUNI",]
+summary(lm(Mass ~ poly(Year, 3), data = euniFAC)) #None of the poly(#s) significant for EUNI
+
+
+##NEED TO GO BACK IN AND ADD IN BIRDS OF UNKNOWN AGE??
 
 HypVars <- vector("list", length = 5)
 HypVars[[1]] <- c("Lat", "Long", "Elev") #Geography
@@ -34,7 +135,7 @@ aic.tab[[19]]
 
 cormat <- TF.cormat <- globHyp <- drgHyp <- cand.mods <- vif <- aic.tab <- vector("list", length = nrow(loop))
 1:nrow(loop)
-?substr
+
 i<-19
 for(i in 1:nrow(loop)){ #
   print(paste("i =", i))
@@ -100,8 +201,7 @@ aic.tab[9:18]
 
 # Round 2 Model Selection -------------------------------------------------
 
-loopMS2 <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.Chord", "Mass")) #Model Selection Round 2
-loopMS2 <- arrange(loopMS2, Species, DV)
+#CHANGE NAME FROM loopMS2 TO loopSppDV
 
 TM <- aic.tabMS2 <- parm.set <- ImpMods <- num.mods <- bpm <- lrtest <- vector("list", length = nrow(loopMS2)) #TM = Top models, ImpMods = #Important models
 p <- -8:0
@@ -242,7 +342,7 @@ dfcoefs$IV <- factor(dfcoefs$IV, levels = c("B.Lat", "B.Long", "BreedElev",   "B
 arrange(dfcoefs, abs(beta))
 subset(dfcoefs,select= -c(Mnames.d.))
 
-#Add asterics above models where TopMod == "Y"
+#Add asterisk above models where TopMod == "Y"
 imp.modnames <- sapply(aic.tabMS2, function(x){filter(x, Delta_AICc < 2) %>% slice_min(K) %>% slice_min(AICc)}[[1]])[1:4] #Delt AIC < 2 OR 
 imp.modnames <- unlist(sapply(aic.tabMS2, function(x){filter(x, Delta_AICc < 4 & K > 2)[,c("Modnames")]})) #Delta AIC < 4, K > 2 to exclude null models
 dfcoefs$TopMod <- ifelse(dfcoefs$Mnames.d. %in% imp.modnames, "Y", "N")
