@@ -325,7 +325,7 @@ ggplot(recap) +
 
 # Year effect -------------------------------------------------------------
 ggplot(data = capri.df, aes(Year)) + geom_histogram() + facet_wrap(~ Species)
-ggsave('Histogram_Years_Species.png')
+#ggsave('Histogram_Years_Species.png')
 
 euni.df <- capri.df %>% filter(Species == "EUNI" & Age != "Unk") #Year > 1989. Removing unknown age birds also removes the really old birds from the dataset 
 nrow(euni.df)
@@ -353,14 +353,6 @@ ggplot(data = euni.df, aes(x = Year, y = B.Lat)) + geom_smooth() + geom_point(al
 ggplot(data = euni.df, aes(x = Year, y = Mass)) + geom_smooth(method = "lm") + geom_point(alpha = .3)
 ggplot(data = euni.df, aes(x = Year, y = Wing.Chord)) + geom_point(alpha = .3) + geom_smooth(method = "lm")
 
-plots <- list()
-for(i in 1:3){
-  print(i)
-  df <- capri.df %>% filter(Species == loop2$Species[i])
-  plots[[i]] <- ggplot(data = df, aes(x = Year, y = B.Lat)) + geom_point(alpha = .3) + geom_smooth()
-  print(plots[[i]])
-}
-
 #For now, I think 
 capri.df <- capri.df %>% filter(Year >= 2010 )
 ggplot(data = capri.df, aes(Year, B.Lat)) + geom_jitter(alpha = .2, width = .4, height = .8, aes(color = Species)) + ylab("Breeding Latitude") + scale_color_discrete(labels = c("Nighthawk", "Nightjar", "Whip-poor-will")) #+ ggtitle("Temporal sampling resolution \n by breeding latitude")
@@ -372,8 +364,8 @@ capri.df %>% filter(Warr.md < as.POSIXct("2024-03-01")) %>% dplyr::select(Specie
 #Determine dates when migrants may be present
 capri.df %>% dplyr::select(Species, Project, B.Lat, Band.md, Bdep.md) %>% mutate(BlatR = round(B.Lat, -1)) %>% group_by(Species, BlatR) %>% summarize(n = n(), MinBand = min(Band.md, na.rm = T), MeanBand = mean(Band.md, na.rm = T), MaxBand = max(Band.md, na.rm = T), minDep = min(Bdep.md, na.rm = T), MeanDep = mean(Bdep.md, na.rm = T), sdDep = sd(Bdep.md, na.rm = T)) %>% mutate(Cutoff = MeanDep - sdDep, TF = Cutoff > MaxBand)
 #Not an issue for CONI or EWPW. For EUNI though.. Birds leave as early as August 1 at 60+ degrees North. Average date of departure at 60N is 8-17, so let's subtract 1 sd and get cutoff date of 08-06. Alternatively, just remove everything banded after 08-01
-##For spring migration for EUNI, both Evens (2017) and Norevik (2017) agree that birds depart wintering grounds in late February, but arrival date is "early May" for Evens (earliest April 28) and average May 16 (earliest May 5) for Norevik (2017), 12 birds in each paper but only 9 made it for spring migration in Evens. Given May 16 is so close to cut-off anyways, probably makes sense to include month of May. 
-#For EWPW, cite my paper for spring departure as March 20th and arrival as April 17th, English (2017) departure = March 21, arrival = May 1. These 2 refs are in agreement.
+##For spring migration for EUNI, both Evens (2017) and Norevik (2017) agree that birds depart wintering grounds in late February, but arrival date is "early May" for Evens (earliest April 28); and average is May 16 (earliest is May 5) for Norevik (2017), 12 birds in each paper but only 9 made it for spring migration in Evens. Given May 16 is so close to cut-off anyways, probably makes sense to include month of May. 
+#For EWPW, cite my paper for spring departure as March 20th and arrival as April 17th, English (2017) departure = March 21, arrival = May 1. These 2 refs are in agreement. Korpach (2022) does not have spring migration dates.
 #For CONI, Elly says to use Nov - March for winter and May - August for breeding.
 
 
@@ -400,7 +392,7 @@ ggplot(data = coni.m, aes(x = Band.md, y = Mass)) + geom_point(alpha = .3) + geo
 #Plotting, Fat ~ band date
 #Gabriel's EUNI data 
 euni.df %>% filter(Project == "NASKASWE") %>% mutate(Fat = as.numeric(Fat)) %>% ggplot(aes(x = Band.md, y = Fat)) + geom_smooth() + geom_point() + ggtitle("Norevik EUNI data")
-ggsave('Fat_date_Norevik.png')
+#ggsave('Fat_date_Norevik.png')
 table(euni.df$Project)
 
 #All species data
@@ -412,7 +404,7 @@ ggpubr::ggarrange(fat_p1, fat_p2,
                   ncol = 2, nrow = 1,
                   align='hv', labels = c("A","B"),
                   legend = "none")
-ggsave("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Results/Figures/EUNI fattening.png", bg = "white")
+#ggsave("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Results/Figures/EUNI fattening.png", bg = "white")
 
 capri.df %>% group_by(Species) %>% summarize(mn_fat = mean(as.numeric(Fat), na.rm = T))
 
@@ -519,7 +511,7 @@ capriMut %>% select(Band.Number, Band.Age, Mass, Mass.comb, Species) %>% group_b
 
 
 #Visualize duplicate birds that have multiple years of winter data
-DupBirds <- data.frame(capri.df %>% group_by(Band.Age, Year) %>% arrange(W.Lat, .by_group = TRUE) %>% slice_head()) 
+DupBirds <- data.frame(capriMut %>% group_by(Band.Age, Year) %>% arrange(W.Lat, .by_group = TRUE) %>% slice_head()) 
 DupBirdsFac <- filter(DupBirds, !is.na(W.Lat))
 dups <- data.frame(DupBirdsFac  %>% filter(duplicated(Band.Number) | duplicated(Band.Number, fromLast = TRUE)) %>% dplyr::select(Species, Project, Year, Band.Number, TagID, Age, W.Lat, W.Long, Wing.Chord, Mass) %>% arrange(Project, Band.Number))
 #The W.Lat difference between years is never very large (see column "Wlat.diff")
@@ -540,7 +532,12 @@ for(i in 1:length(uniqID)){
 
 dists <- data.frame(Band.Number = uniqID, Dists = round(unlist(dist.all) / 1000, 2)) 
 df.dists <- merge(dists, df.Wlat.diff, by = "Band.Number") %>% arrange(Species, Dists)
-df.dists %>% group_by(Species) %>% summarize(mdn = median(Dists), mn = mean(Dists), sd = sd(Dists))
+df.dists %>% group_by(Species) %>% summarize(mdn = median(Dists), mn = mean(Dists), sd = sd(Dists), N = n())
+
+capri.df %>% filter(Band.Number == 4688397)
+
+df.dists %>% filter(Dists > 5) %>% pull(Band.Number)
+
 
 #Remove repeat individuals 
 levels(capriBA$Age) #Notice order, this should NOT be a factor in order for arrange to work correctly
@@ -578,8 +575,14 @@ ggplot(data= capri.fac, aes(x = Str8line, y = Mig.dist)) +
   geom_point(aes(color = Species), size = 3, position = "jitter", alpha=.3) + 
   geom_abline(slope= 1, linetype = "dashed", color="Black") + #+ xlab("Departure Date") + ylab("Migration\nRate (km / day)") 
   ggtitle("Mig dist calculations all species")
-
-
+  
+#Plot the geographic locations compared to migratory distances (size of circles). Idea was that this might help us locate any errors, but nothing really stands out, meaning it's likely OK to press forward assuming these migratory distance values are right. 
+data.frame(capri.fac[,c("Species","Band.Number", "Mig.dist", "Project")], stack(capri.fac[,c("B.Lat", "W.Lat")]), stack(capri.fac[,c("B.Long", "W.Long")])) %>% 
+  rename(Lat = values, Long = values.1) %>% 
+  filter(Species == "EUNI") %>% 
+  ggplot(aes(x = Long, y = Lat)) + geom_point(alpha  = .5,  aes(size = Mig.dist, color = Project)) + geom_line(alpha = .3, aes(group = Band.Number)) + scale_size(range = c(0, 8))
+ggsave("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Results/Figures/EUNI_mig_dist_Lat_Long.png", bg = "white")
+ 
 capri.fac %>% filter(Mig.dist > 10000)
 
 #Migration distance models. Does the variation in temporal schedule influence migration distance? Depends how you look at it.. Overall (model w/ RE), temp.res.mig is significant by itself, but not once you include breeding latitude (which obviously influences migration distance).
@@ -593,14 +596,18 @@ summary(capri.fac$Temp.res.mig) #Ranges from 7 points a day to 1 point every 10 
 
 #Overall model
 summary(lmer(Mig.dist ~ Temp.res.mig + B.Lat + (1| Species), data = capri.fac))
+summary(lmer(Mig.dist ~ Temp.res.mig + (1| Species), data = capri.fac))
+summary(lmer(Mig.dist ~ W.Lat * W.Long + (1 | Project), euni.df))
+
 
 #By species, only EWPW is significantly impacted by temp sampling resolution.
 Spp <- capri.fac %>% filter(Species == "EWPW") 
 #This is complicated by the fact that breeding latitude is highly correlated with sampling resolution (-0.78)
 cor(Spp$B.Lat, Spp$Temp.res.mig, use = "complete.obs") 
-summary(lm(Mig.dist ~ Temp.res.mig + B.Lat, data = Spp))
-af <- anova(lm(Mig.dist ~ B.Lat + Temp.res.mig, data = Spp))
+summary(lm(Mig.dist ~ B.Long + B.Lat + Temp.res.mig, data = Spp))
+af <- anova(lm(Mig.dist ~ B.Lat + B.Long + Temp.res.mig , data = Spp)) #Don't understand why PctExpplained decreases for B.Long when it becomes the first variable? 
 af %>% mutate(pctExp = `Sum Sq` / sum(`Sum Sq`) * 100)
+
 
 #Plot temp sampling resolution impact on Mig dist by latitude for each spp
 ggplot(data= capri.fac, aes(x = Temp.res.mig, y = Mig.dist)) + 
@@ -609,6 +616,8 @@ ggplot(data= capri.fac, aes(x = Temp.res.mig, y = Mig.dist)) +
   facet_wrap(~Species) +
   xlab("Temporal sampling resolution") + ylab("Calculated Migration\nDistance") 
   ggtitle("Mig dist calculations all species")
+  
+  
 
 #Overall, if you could really trust the EUNI mig distances you could just use the raw migration distances, as they're not impacted by temporal sampling resolution whatsoever. For CONI the relationship is not significant once breeding lat is controlled for, but for EWPW it is more challenging.. 
   
@@ -738,49 +747,66 @@ ee_check_python_packages()
 ee_Initialize(user = "aaron.skinner@fulbrightmail.org", drive = TRUE, gcs = TRUE)
 
 # Link envi covs w/ individuals -------------------------------------------
-
 #Elly pulled the individuals w/ winter locs from the bigger file I sent her (near 1000 rows)
 #load("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Correlations/EC_workspace.Rdata")
-#This njdf file needs to be the complete data frame w/ all variables (e.g. capri.fac) and including the ID column. 
 
-#DELETE::Delete this and instead use capri.df 
-njdf <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/capri.fac.id.csv") #nightjar df
-njdf <- capri.fac
-njdf$ID <- 1:186
-
-
+##Bring in data sets
+wc <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Wordclim-Buffer.csv")
+evi <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/EVI-Buffer.csv")
+tc <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Terraclim-buffer_2.csv")
 elev <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/DEM-Buffer.csv")
+
+#Note elevation is structured differently
 elev <- elev %>% dplyr::select(rowID, season, mean) %>% group_by(rowID) %>% tidyr::pivot_wider(names_from = season, names_glue = "{season}Elev", values_from = mean) #Notice names glue so season starts the name
 
+##Average the environmental variables over the relevant months (Table 1) for each species
+Spp <- c("CONI", "EWPW", "EUNI")
+months <- list(months_br_end = c(8,9,8), months_wi_end = c(3,3,2))
+br.wc <- wi.wc <- br.evi <- wi.evi <-  br.tc <- wi.tc <- list()
+for(i in 1:length(Spp)){
+  print(i)
+  wc_df <- wc %>% filter(Species == Spp[i])
+  evi_df <- evi %>% filter(Species == Spp[i])
+  tc_df <- tc %>% filter(Species == Spp[i])
+  
+  #World Clim - Previously had WiTmax = mean(tmax), WiTMAX = max(tmax), WiTmin = mean(tmin), WiTMIN = min(tmin), WiMDR = sum(tmax - tmin) / 5
+  br.wc[[i]] <- wc_df %>% group_by(rowID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= months[[1]][i]) %>% summarize(BrPrec = mean(prec), BrCVprec = raster::cv(prec), BrTavg = mean(tavg), BrTcv = ((sd(tavg/10))/(mean(tavg/10) + 273.15))*100)
+  wi.wc[[i]] <- wc_df %>% group_by(rowID) %>% filter(season == "Winter", covmonth >= 11 | covmonth <= months[[2]][i]) %>% summarize(WiPrec = mean(prec, na.rm = T), WiCVprec = raster::cv(prec, na.rm = T), WiTavg = mean(tavg, na.rm = T), WiTcv = ((sd(tavg/10, na.rm = T))/(mean(tavg/10, na.rm = T) + 273.15))*100)
+    
+  #EVI
+    br.evi[[i]] <- evi_df %>% group_by(rowID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= months[[1]][i]) %>% summarize(BrEVI = mean(EVI, na.rm = T), BrCVevi = raster::cv(EVI, na.rm = T))
+    wi.evi[[i]] <- evi_df %>% group_by(rowID) %>% filter(season == "Winter", covmonth >= 11 | covmonth <= months[[2]][i]) %>% summarize(WiEVI = mean(EVI, na.rm = T), WiCVevi = raster::cv(EVI, na.rm = T))
+    
+  #Terraclim - Previously had Aet & Vap as well
+    br.tc[[i]] <- tc_df %>% group_by(rowID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= months[[1]][i]) %>% summarize(BrSrad = mean(srad, na.rm = T))
+    wi.tc[[i]] <- tc_df %>% group_by(rowID) %>% filter(season == "Winter", covmonth >= 11 | covmonth <= months[[2]][i]) %>% summarize(WiSrad = mean(srad, na.rm = T)) 
+}
 
-#WorldClim
-wc <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Wordclim-Buffer.csv")
-#MDR = mean diurnal range, BIO2. Many of these are similar to the 19 worldclim vars (good comparison to make in manuscript, as people are familiar with these vars). Notice particularly that BrTcv is not equivalent to using the cv function (i.e compCV = cv(tavg, na.rm = T) produces slightly different results). 
-#Should MDR go into seasonality or temp regulation... Elly & I think TR, b/c seasonality is ACROSS the entirety of the season, MDR is within each month.
-br.wc <- wc %>% group_by(rowID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= 9) %>% summarize(BrPrec = mean(prec), BrCVprec = raster::cv(prec), BrTavg = mean(tavg), BrTcv = ((sd(tavg/10))/(mean(tavg/10) + 273.15))*100, BrTmax = mean(tmax), BrTMAX = max(tmax), BrTmin = mean(tmin), BrTMIN = min(tmin), BrMDR = sum(tmax - tmin) / 5)
-wi.wc <- wc %>% group_by(rowID) %>% filter(season == "Winter", covmonth >= 10 | covmonth <= 4) %>% summarize(WiPrec = mean(prec, na.rm = T), WiCVprec = raster::cv(prec, na.rm = T), WiTavg = mean(tavg, na.rm = T), WiTcv = ((sd(tavg/10, na.rm = T))/(mean(tavg/10, na.rm = T) + 273.15))*100, WiTmax = mean(tmax), WiTMAX = max(tmax), WiTmin = mean(tmin), WiTMIN = min(tmin), WiMDR = sum(tmax - tmin) / 5)
+dfs <- list(br.wc, wi.wc, br.evi, wi.evi, br.tc, wi.tc, elev)
+names(dfs) <- c("br.wc", "wi.wc", "br.evi", "wi.evi", "br.tc", "wi.tc", "elev")
+#dfs <- lapply(dfs, function(x){setNames(x, Spp)}) Not necessary
+dfs <- lapply(dfs, bind_rows)
 
-#EVI
-evi <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/EVI-Buffer.csv")
-br.evi <- evi %>% group_by(rowID) %>% filter(season == "Breed", covmonth >= 6 & covmonth <= 7) %>% summarize(BrEVI = mean(EVI, na.rm = T), BrCVevi = raster::cv(EVI, na.rm = T))
-wi.evi <- evi %>% group_by(rowID) %>% filter(season == "Winter", covmonth >= 10 | covmonth <= 4) %>% summarize(WiEVI = mean(EVI, na.rm = T), WiCVevi = raster::cv(EVI, na.rm = T))
+EnviCovs <- dfs %>% purrr::reduce(full_join, by = "rowID")
+EnviCovs <- merge(EnviCovs, capri.df[,c("rowID", "Band.Number", "B.Lat", "B.Long", "Banding.Date", "Species")], by = "rowID")
+head(EnviCovs)
+nrow(EnviCovs) #Should be 5927
 
-##SKIP
-#Terraclim -- Going to skip on Rd2 b/c this file is nearly a GB in size, and we're not planning on using at present. Variables contained are Aet, Vap, and Srad
-#tc <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Terraclim-buffer.csv")
-head(tc)
-br.tc <- tc %>% group_by(rowID) %>% filter(season == "Breed", covmonth >= 5 & covmonth <= 9) %>% summarize(BrAet = mean(aet, na.rm = T), BrVap = mean(vap, na.rm = T), BrSrad = mean(srad, na.rm = T))
-wi.tc <- tc %>% group_by(rowID) %>% filter(season == "Winter", covmonth >= 10 | covmonth <= 4) %>% summarize(WiAet = mean(aet, na.rm = T), WiVap = mean(vap, na.rm = T), WiSrad = mean(srad, na.rm = T))
-##
+#RELINK ENVI VARS W/ CAPRI.DF
 
+ggplot(data = EnviCovs, aes(x = B.Lat, y = BrEVI, color = Species)) + geom_jitter(alpha = .2) + geom_smooth(method = "lm")
+EnviCovs %>% group_by(Species) %>% summarize(cor = cor(BrPrec, B.Long, use = "complete.obs"))
+#ggsave("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Results/Figures/Prec_Blat.png", bg = "white")
 
 ###B/c rowID got messed up (likely due to changing Marja's banding times), we have to overwrite some rowIDs so we get a good match 
 CheckDFelly <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/CapDfElly.csv")
 capri.df <- capri.df %>% mutate(rowID = row_number())
-identical(capri.df[,c("rowID", "Band.Number")] , CheckDFelly[,c("rowID", "Band.Number")]) #Fucked up 
+identical(capri.df[,c("rowID", "Band.Number")] , CheckDFelly[,c("rowID", "Band.Number")]) #Fucked up
+
 
 capri.df$Banding.Date <- as.character(capri.df$Banding.Date)
-#Let's check for repeats in these key columns that we'll use to match
+#Let's check for repeats in these key columns that we'll use to match. 
+nrow(capri.df) #Should be 5927 (run through removal of age)
 TF <- capri.df[,c("Band.Number", "Banding.Date", "W.Lat")] == CheckDFelly[,c( "Band.Number", "Banding.Date", "W.Lat")]
 #NOT RELEVANT AT PRESENT::If you were to delete rows where rowID is same but band numbers differ, then things could be problematic when Band.Numbers are the same and something else differs. Biggest key is that this is not issue w/ W.Lat, but the Banding.Date is also not ideal (but it's OK b/c just 5 individuals). Probably best to just delete these 189 individuals
 data.frame(TF) %>% filter(Band.Number != Banding.Date | Band.Number != W.Lat | W.Lat != Banding.Date)
@@ -815,13 +841,6 @@ table(test$Band.Number.x == test$Band.Number.y)
 length(unique(capri.df$rowID)) #There are some individuals that have repeated rowID, but this does not matter for assingment of environmental covariates
 capri.df %>% filter(duplicated(rowID))
 ##End of rowID fix 
-
-dfs <- list(br.wc,  wi.wc, elev, br.evi, wi.evi) #br.tc, wi.tc
-EnviCovs <- dfs %>% purrr::reduce(full_join, by = "rowID")
-length(unique(EnviCovs$rowID))
-EnviCovs <- merge(EnviCovs, capri.df[,c("rowID", "Band.Number", "Banding.Date", "Species")], by = "rowID")
-nrow(EnviCovs) #Should be 5927
-
 
 #Correlations EWPW
 ##Just taking the covariates that actually made it into the final models..
@@ -863,8 +882,11 @@ write.csv(round(apply(CMewpw, 2, function(x){ifelse(x < .5 & x > -.5, NA, x)}),2
 euniBrPred <- euni.m[,c("B.Lat", "B.Long", "BrTavg", "BrPrec" , "BrTcv", "BrCVevi", "BrEVI", "BrSrad", "BrMDR" , "BreedElev", "str8line")]
 GGally::ggcorr(euniBrPred, label = T, label_size = 3, hjust = 0.75, size = 3) + ggtitle("European Nightjar breeding predictors")
 
-#save.image("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Correlations/EC_workspace.Rdata")
+#Notes on MDR
+#MDR = mean diurnal range, BIO2. Many of these are similar to the 19 worldclim vars (good comparison to make in manuscript, as people are familiar with these vars). Notice particularly that BrTcv is not equivalent to using the cv function (i.e compCV = cv(tavg, na.rm = T) produces slightly different results). 
+#Should MDR go into seasonality or temp regulation... Elly & I think TR, b/c seasonality is ACROSS the entirety of the season, MDR is within each month.
 
+#save.image("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing:Exit_Seminar/Bergs_Rule/Data_share/Data/EK_Envi_Vars/Correlations/EC_workspace.Rdata")
 
 # AIC Model selection -----------------------------------------------------
 
