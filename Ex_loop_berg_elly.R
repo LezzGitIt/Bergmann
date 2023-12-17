@@ -1,20 +1,21 @@
 #load("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/R_Files/MS/BergJIC.Rdata")
-#load("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/R_Files/MS/BergAnalysis9.25.22.Rdata")
+load("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/R_Files/MS/BergAnalysis9.25.22.Rdata")
 
 ?head
 
 # NEXT STEPS --------------------------------------------------------------
 
 ##BT.comb -> Filter out individuals with improbable banding times, calculate tsss by correct timezone, then combine same individuals tsss (instead of by bandtime). COMPLETE :)
-#Determine nuisance vars to test, establish rationale for month.day and year
+#Determine nuisance vars to test, establish rationale for month.day and year COMPLETE :)
+#Recalculate environmental variables (in a loop) w/ the correct months for each species COMPLETE :)
+#Review emails about framing of paper, read Alicia's version of paper COMPLETE :)
 
-#Review emails about framing of paper, read Alicia's version of paper (can work in doc and add "PREPRINT" to things that will just happen in the preprint)
-##Had previously had error in row_number, take another look at that and then link up with Elly's Envi variables
+#TAKEAWAY: We're going to stick with our model sets, including the productivity model. Can run a post-hoc model to see support for the 'homeostasis' model (Ex. in methods: 'although this did not align with our a-priori model structure framework, we ran an additional post-hoc model with temp + precip as there is also substantial support for the combinatory effects of temp & fluid regulation'). We can run all models together in code b/c we know that all species will adhere to Bergmann's rule (objective 1), but will likely want to present results differently in the paper (e.g. could separate out geography model), and later compare best environmental model to geography model w/ likelihood ratio test or something). Or insert best geography model into the mix with ALL other environmental models
+##Had previously had error in row_number, take another look at that and then link up with Elly's Envi variables. Also rerun correlations and make sure everything makes sense!
 #Adjust code to include the nuisance variables we're controlling for including poly(tsss, 2)
 #Adjust code to be a single round of model selection instead of 2 rounds 
-#Tidy code up at the end 
-#Save to GitHub before making more changes (and for solving issue w/ envi covs link), plus every so often in addition 
-#Restart R and rerun everything. Will want to reorganize some things 
+#SAVE TO GIT - TIDY CODE UP AT THE END (BE LIBERAL DELETING) - RESAVE TO GIT AFTER 
+#Restart R and rerun everything to ensure it is self-contained. Will want to reorganize some things 
 
 # Stomach -----------------------------------------------------------------
 
@@ -32,9 +33,10 @@ stomach %>% ggplot(aes(x = Banding.Time, y = Stomach)) + geom_jitter(width = .05
 summary(lm(Stomach ~ Banding.Time, data = stomach))
 with(stomach, cor.test(Banding.Time, Stomach))
 
-#Prep loops
+
+# Prep loops --------------------------------------------------------------
 loop <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.comb", "Mass.combBT"), Season = c("Breed", "Winter"), Hypothesis = c("Geo", "TR", "Prod", "Seas"))
-loop2 <- expand.grid(Species = c("CONI", "EWPW", "EUNI"),DV = c("Wing.comb", "Mass.combBT"), Season = "NA", Hypothesis = "Mig.Dist")
+loop2 <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.comb", "Mass.combBT"), Season = "NA", Hypothesis = "Mig.Dist")
 loop <- rbind(loop,loop2)
 loop <- arrange(loop, Species, DV, Hypothesis)
 loopSppDV <- expand.grid(Species = c("CONI", "EWPW", "EUNI"), DV = c("Wing.comb", "Mass.combBT")) #Model Selection Round 2
@@ -109,21 +111,19 @@ euniFAC <- capri.fac[capri.fac$Species == "EUNI",]
 
 HypVars <- vector("list", length = 5)
 HypVars[[1]] <- c("Lat", "Long", "Elev") #Geography
-HypVars[[2]] <- c("MDR", "Srad", "Tavg") #Temp Regulation (TR)
+HypVars[[2]] <- c("Srad", "Tavg") #Temp Regulation (TR)
 HypVars[[3]] <- c("EVI", "Prec") #Productivity
 HypVars[[4]] <- c("CVevi", "PrecCV", "Tcv") #Seasonality
 HypVars[[5]] <- "str8line"
 names(HypVars) <- c("Geo", "TR", "Prod", "Seas", "Mig.Dist")
-names(df)
-?cv
-aic.tab[[19]]
+
 
 # Round 1 Model Selection -------------------------------------------------
 
 cormat <- TF.cormat <- globHyp <- drgHyp <- cand.mods <- vif <- aic.tab <- vector("list", length = nrow(loop))
 1:nrow(loop)
 
-i<-19
+
 for(i in 1:nrow(loop)){ #
   print(paste("i =", i))
   df <- njdf.list[paste0(loop[i,1], ".", loop[i,2])][[1]]

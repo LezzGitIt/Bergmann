@@ -33,7 +33,11 @@ bs <- "/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/"
 EKconiFAC <- read.csv(paste0(bs, "Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_DataSheet_CONI_Feb16.csv")) #Notice there are 7 or 8 rows of repeat individuals 2nd wintering locations. This is removed further down w/ band_age given that it's same band # and same deployment year
 EKconiBr <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/EK_CONI_Breeding.csv")
 ASewpw <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/Tonra_Ward_EWPW_Berg_Combined.csv")
-AKewpw <-read.csv(paste0(bs, "Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/AK_Bergs_10Apr2023.csv"))
+AKewpw2 <-read.csv(paste0(bs, "Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/AK_Bergs_19Sep2023.csv"))
+
+#DELETE
+AKewpw <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/AK_Bergs_10Apr2023.csv")
+
 MBewpw <-read.csv(paste0(bs, "Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/MB_VItz_EWPW_Massachusetts.csv"))
 JHeunj <-read.csv(paste0(bs, "Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/JH_Finland_v6.csv"))
 LJeunj <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Grad_School/MS/EWPW/Writing_Exit_Seminar/Bergs_Rule/Data_share/Data/Nightjar_data_Denmark_Thorup_Jacobsen/LJ_eunj_2023_DK.csv")##SEE NEW sheet w/ updated age code
@@ -45,6 +49,22 @@ VariousGC <- read.csv("/Users/aaronskinner/Library/Mobile Documents/com~apple~Cl
 
 #Make necessary changes for data formatting
 cols <- c("Project", "Year", "Banding.Date", "Recap.", "Banding.Time", "Species", "Site.name", "Country", "Band.Number","TagID", "Age", "Sex", "CP","BP","Fat", "Wing.Chord", "WingFlat", "Tail.Length", "Tarsus","Mass","B.Lat","B.Long","W.Lat", "W.Long", "B.dep","W.arr", "Mig.dist", "Mig.n", "Temp.res.mig")
+
+###ALICIA LEFT OUT B.DEP AND W.ARR COLUMNS, HOPEFULLY SHE'LL GET THIS BACK SOON AND THEN JUST NEED TO ENSURE THE ORDER OF THE COLUMNS IS THE SAME 
+#Confirmed that all mig.dist.filt values are < mig.dist values (abline slope = 1), which makes sense
+migs <- c("Mig.dist", "Mig.n", "Temp.res.mig")
+AKewpw2 <- AKewpw %>% select(-migs) %>%
+  rename_with(.cols = contains("filt"), .fn = ~str_remove(., pattern = ".filt")) %>% 
+  mutate(Project = "Korpach")
+
+AKnames <- names(AKewpw2)[1:29]
+data.frame(AKnames, cols, AKnames == cols)
+
+#Ensure new data frame nrow() == 193 , or more
+capri.df %>% filter(Project == "Korpach") %>% nrow() #193
+
+#DELETE
+#AKewpw$Project <- "Korpach"
 
 
 ##Handle the pecularities of each data set to allow for combination and more efficient cleaning##
@@ -85,7 +105,6 @@ EKconi <- EKconi %>%
 #CHECK::Ensure that the TagID replaced 'Unbanded' and that Unbandeds are now unique
 EKconi %>% arrange(BandNumber) %>% select(BandNumber, TagID)
 
-AKewpw$Project <- "Korpach"
 
 #Greg 9 FAC birds
 GCeunj <- GCeunj %>% 
@@ -125,8 +144,6 @@ capri.df <- capri.df %>% mutate(Species = ifelse(capri.df$Species == "Ceur" | ca
                                            vectorize=FALSE)) %>%
   arrange(is.na(W.Lat), Species, Project) #%>% 
                     #mutate(rowID = row_number()) #Remove nestlings first then create rowID
-
-head(capri.df)
 
 
 capri.df$Banding.Time <- str_pad(capri.df$Banding.Time, 4, pad = "0")
@@ -201,29 +218,39 @@ nrow(CapDfElly) #5927 rows
 ##
 
 # Data entry errors / outliers for Wing & mass ----------------------------
-capri.df %>% group_by(Species) %>% summarize(mnWing = mean(Wing.Chord, na.rm = T), 
-                                             mn.Mass = mean(Mass, na.rm = T))
-capri.df %>% arrange(Wing.Chord) %>% select(Project, Species, Age, Wing.Chord, Mass, Year, Band.Number) %>% slice_head(n = 10)
-capri.df %>% arrange(desc(Wing.Chord)) %>% select(Project, Species, Age, Wing.Chord, Mass, Year, Band.Number) %>% slice_head(n = 10)
-capri.df %>% arrange(desc(Mass)) %>% select(Project, Species, Age, Wing.Chord, Mass, Year, Band.Number) %>% slice_head(n = 10)
-capri.df %>% arrange(Mass) %>% select(Project, Species, Age, Wing.Chord, Mass, Year, Band.Number) %>% slice_head(n = 10)
+#Note there were some typos but these have been corrected now
+capri.df %>% group_by(Species) %>% 
+  summarize(mnWing = mean(Wing.Chord, na.rm = T), 
+            mn.Mass = mean(Mass, na.rm = T))
+
+capri.df %>% arrange(Wing.Chord) %>% 
+  select(Project, Species, Age, Wing.Chord, Mass, Year, Band.Number) %>% 
+  slice_head(n = 10)
+capri.df %>% arrange(desc(Wing.Chord)) %>% 
+  select(Project, Species, Age, Wing.Chord, Mass, Year, Band.Number) %>% 
+  slice_head(n = 10)
+capri.df %>% arrange(desc(Mass)) %>% 
+  select(Project, Species, Age, Wing.Chord, Mass, Year, Band.Number) %>% 
+  slice_head(n = 10)
+capri.df %>% arrange(Mass) %>% 
+  select(Project, Species, Age, Wing.Chord, Mass, Year, Band.Number) %>% 
+  slice_head(n = 10)
 capri.df %>% ggplot(aes(Mass, Species)) + geom_boxplot()
 capri.df %>% ggplot(aes(Wing.Chord, Species)) + geom_boxplot()
 
 #CHECK::Are there individuals banded during the day? Do they have wintering information? 
-capri.df %>% filter(hms(Banding.Time) > hms("06:00:00") & hms(Banding.Time) < hms("18:00:00")) %>% select(Project, Band.Number, Banding.Time, tsss, W.Lat, Age) %>% arrange(Band.Number, Project, Banding.Time)
+capri.df %>% filter(hms(Banding.Time) > hms("06:00:00") & hms(Banding.Time) < hms("18:00:00")) %>%
+  select(Project, Band.Number, Banding.Time, W.Lat, Age) %>% #tsss,
+  arrange(Band.Number, Project, Banding.Time) %>% 
+  filter(!is.na(W.Lat))
 
 ##Remove individuals with crazy numbers
 nrow(capri.df)
 #Remove 13 individuals banded during the day
 capri.df <- capri.df %>% 
-  filter(hms(Banding.Time) < hms("08:05:00") | hms(Banding.Time) > hms("18:00:00")) %>%
-  rbind(capri.df %>% filter(is.na(Banding.Time))) #Rbinds previous output with times equal to NA 
-capri.df <- capri.df %>% filter(is.na(Wing.Chord) | Wing.Chord < 250 & Wing.Chord > 30)
-
-capri.df %>% ggplot(aes(Wing.Chord)) + geom_histogram() + facet_wrap(~Species)
-capri.df %>% ggplot(aes(Mass)) + geom_histogram() + facet_wrap(~Species)
-
+  filter(hms(Banding.Time) < hms("08:05:00") | 
+           hms(Banding.Time) > hms("18:00:00") | 
+           is.na(Banding.Time))
 
 # MassCorrection ----------------------------------------------------------
 
